@@ -3,10 +3,10 @@
 # -----------------------------------------------
 # Add specific folders containing data and binaries that are managed by Git LFS.
 # These are ignored here to prevent accidental commitment if LFS is not set up correctly.
-data/
+#data/
 binaries/
-*.csv
-*.txt
+#*.csv
+#*.txt
 
 # Operating System and IDE Files for Cross-Platform use (Win11 and Debian)
 .DS_Store
