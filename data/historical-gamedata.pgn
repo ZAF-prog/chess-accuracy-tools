@@ -1,0 +1,143 @@
+﻿[Event "Steinitz"]
+[Site "W Ch Havana 1889"]
+[Date "1834.??.??"]
+[Round "3"]
+[White "Chigorin, Mikhail"]
+[Black "Steinitz, Wilhelm"]
+[Result "0-1"]
+[ECO "C52"]
+[PlyCount "112"]
+[Source "AjedrezOTB"]
+[ImportDate "2025-06-03"]
+
+
+	   1.	e4          	e5          
+	   2.	Nf3         	Nc6         
+	   3.	Bc4         	Bc5         
+	   4.	b4          	Bxb4        
+	   5.	c3          	Ba5         
+	   6.	O-O         	Qf6         
+	   7.	d4          	Nge7        
+	   8.	Bg5         	Qd6         
+	   9.	d5          	Nd8         
+	  10.	Qa4         	b6          
+	  11.	Na3         	a6          
+	  12.	Bb3         	Bxc3        
+	  13.	Rac1        	Qb4         
+	  14.	Nb5         	Qxb5        
+	  15.	Qxb5        	axb5        
+	  16.	Rxc3        	c5          
+	  17.	dxc6        	Ndxc6       
+	  18.	Bxe7        	Kxe7        
+	  19.	Bd5         	f6          
+	  20.	Bxc6        	dxc6        
+	  21.	Rxc6        	Bd7         
+	  22.	Rxb6        	Rhb8        
+	  23.	Rxb8        	Rxb8        
+	  24.	Rb1         	Bc6         
+	  25.	Re1         	Ra8         
+	  26.	Re2         	Ra4         
+	  27.	Rb2         	Rxe4        
+	  28.	h3          	Kd6         
+	  29.	Nd2         	Ra4         
+	  30.	f3          	f5          
+	  31.	Kf2         	Ra3         
+	  32.	Nb1         	Rd3         
+	  33.	Ke2         	e4          
+	  34.	Nd2         	Ra3         
+	  35.	fxe4        	fxe4        
+	  36.	Nb1         	Rg3         
+	  37.	Kf2         	Rd3         
+	  38.	Ke2         	h5          
+	  39.	Nd2         	Rg3         
+	  40.	Kf2         	Ra3         
+	  41.	Nf1         	Bd5         
+	  42.	Rxb5        	Rxa2+       
+	  43.	Ke3         	Rxg2        
+	  44.	Kd4         	Bc6         
+	  45.	Rxh5        	Ra2         
+	  46.	Ne3         	Rd2+        
+	  47.	Kc4         	Bd7         
+	  48.	Rg5         	Be6+        
+	  49.	Kb4         	Rd4+        
+	  50.	Kb5         	Rd3         
+	  51.	Nc4+        	Bxc4+       
+	  52.	Kxc4        	Rd1         
+	  53.	Rxg7        	e3          
+	  54.	Rg2         	Ke5         
+	  55.	Kc3         	Ke4         
+	  56.	Kc2         	Rf1         
+
+0-1
+
+[Event "Cheltenham"]
+[Site "Cheltenham"]
+[Date "1951.01.01"]
+[Round "1"]
+[White "Tartakower, Savielly"]
+[Black "Pirc, Vasja"]
+[Result "0-1"]
+[ECO "A03"]
+[Source "Masters"]
+
+
+	   1.	f4          	d5          
+	   2.	e3          	Nf6         
+	   3.	b3          	g6          
+	   4.	Bb2         	Bg7         
+	   5.	Nf3         	O-O         
+	   6.	Be2         	c5          
+	   7.	O-O         	Nc6         
+	   8.	Ne5         	Bd7         
+	   9.	d3          	d4          
+	  10.	Nxd7        	Nxd7        
+	  11.	e4          	f5          
+	  12.	exf5        	gxf5        
+	  13.	Bf3         	Nf6         
+	  14.	Bxc6        	bxc6        
+	  15.	Nd2         	e5          
+	  16.	fxe5        	Ng4         
+	  17.	Nc4         	Qh4         
+	  18.	h3          	Nxe5        
+	  19.	Qe1         	Qh5         
+	  20.	Nxe5        	Rae8        
+	  21.	Qd1         	Qxd1        
+	  22.	Raxd1       	Rxe5        
+	  23.	Rde1        	Rfe8        
+	  24.	Rxe5        	Rxe5        
+	  25.	Kf2         	Bh6         
+	  26.	Re1         	Be3+        
+	  27.	Kf3         	f4          
+	  28.	Bc1         	Rg5         
+	  29.	Bxe3        	fxe3        
+	  30.	g4          	Kf7         
+	  31.	c3          	Ke6         
+	  32.	Rc1         	Kd5         
+	  33.	cxd4        	cxd4        
+	  34.	b4          	Rg6         
+	  35.	Rc5+        	Kd6         
+	  36.	Rc4         	Rf6+        
+	  37.	Kg3         	c5          
+	  38.	bxc5+       	Kd5         
+	  39.	Rc1         	Rc6         
+	  40.	Rf1         	Rxc5        
+	  41.	Rf8         	Rc3         
+	  42.	Rf7         	Rxd3        
+	  43.	Rxh7        	e2+         
+	  44.	Kf2         	Re3         
+	  45.	Ke1         	d3          
+	  46.	Rd7+        	Ke5         
+	  47.	h4          	Rh3         
+	  48.	Kd2         	Rh1         
+	  49.	Re7+        	Kf4         
+	  50.	g5          	Rd1+        
+	  51.	Kc3         	e1=Q+       
+	  52.	Rxe1        	Rxe1        
+	  53.	Kxd3        	Kf5         
+	  54.	Kc4         	Re4+        
+	  55.	Kb5         	Rxh4        
+	  56.	a4          	Kxg5        
+	  57.	a5          	Rh6         
+
+0-1
+

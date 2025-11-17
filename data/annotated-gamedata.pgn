@@ -1,0 +1,141 @@
+[Event "Steinitz"]
+[Site "W Ch Havana 1889"]
+[Date "1834.??.??"]
+[Round "3"]
+[White "Chigorin, Mikhail"]
+[Black "Steinitz, Wilhelm"]
+[Result "0-1"]
+[ECO "C52"]
+[PlyCount "112"]
+[Source "AjedrezOTB"]
+[ImportDate "2025-06-03"]
+
+1. e4 {[%eval 0.33]} e5 {[%eval 0.34]}
+2. Nf3 {[%eval 0.22]} Nc6 {[%eval 0.37]}
+3. Bc4 {[%eval 0.01]} Bc5 {[%eval 0.10]}
+4. b4 {[%eval -0.37]} Bxb4 {[%eval -0.18]}
+5. c3 {[%eval -0.10]} Ba5 {[%eval -0.04]}
+6. O-O {[%eval -0.49]} Qf6 {[%eval 0.68]}
+7. d4 {[%eval 0.78]} Nge7 {[%eval 0.65]}
+8. Bg5 {[%eval 0.61]} Qd6 {[%eval 0.49]}
+9. d5 {[%eval 0.53]} Nd8 {[%eval 0.50]}
+10. Qa4 {[%eval 0.12]} b6 {[%eval 1.25]}
+11. Na3 {[%eval 0.97]} a6 {[%eval 1.97]}
+12. Bb3 {[%eval 0.95]} Bxc3 {[%eval 1.21]}
+13. Rac1 {[%eval 1.30]} Qb4 {[%eval 1.22]}
+14. Nb5 {[%eval -1.40]} Qxb5 {[%eval -1.34]}
+15. Qxb5 {[%eval -1.80]} axb5 {[%eval -1.56]}
+16. Rxc3 {[%eval -1.91]} c5 {[%eval -1.91]}
+17. dxc6 {[%eval -2.00]} Ndxc6 {[%eval -0.87]}
+18. Bxe7 {[%eval -2.06]} Kxe7 {[%eval -1.99]}
+19. Bd5 {[%eval -2.07]} f6 {[%eval -1.49]}
+20. Bxc6 {[%eval -1.56]} dxc6 {[%eval -1.72]}
+21. Rxc6 {[%eval -1.79]} Bd7 {[%eval -1.54]}
+22. Rxb6 {[%eval -1.58]} Rhb8 {[%eval -1.23]}
+23. Rxb8 {[%eval -1.43]} Rxb8 {[%eval -1.46]}
+24. Rb1 {[%eval -1.42]} Bc6 {[%eval -0.85]}
+25. Re1 {[%eval -2.21]} Ra8 {[%eval -2.15]}
+26. Re2 {[%eval -3.03]} Ra4 {[%eval -3.25]}
+27. Rb2 {[%eval -3.09]} Rxe4 {[%eval -3.22]}
+28. h3 {[%eval -3.09]} Kd6 {[%eval -3.03]}
+29. Nd2 {[%eval -3.02]} Ra4 {[%eval -3.00]}
+30. f3 {[%eval -2.95]} f5 {[%eval -2.86]}
+31. Kf2 {[%eval -2.80]} Ra3 {[%eval -2.69]}
+32. Nb1 {[%eval -2.66]} Rd3 {[%eval -2.66]}
+33. Ke2 {[%eval -2.64]} e4 {[%eval -2.72]}
+34. Nd2 {[%eval -2.75]} Ra3 {[%eval -2.72]}
+35. fxe4 {[%eval -2.79]} fxe4 {[%eval -2.92]}
+36. Nb1 {[%eval -2.92]} Rg3 {[%eval -2.86]}
+37. Kf2 {[%eval -2.82]} Rd3 {[%eval -2.90]}
+38. Ke2 {[%eval -2.84]} h5 {[%eval -2.84]}
+39. Nd2 {[%eval -2.81]} Rg3 {[%eval -2.86]}
+40. Kf2 {[%eval -2.85]} Ra3 {[%eval -2.70]}
+41. Nf1 {[%eval -2.68]} Bd5 {[%eval -2.20]}
+42. Rxb5 {[%eval -2.38]} Rxa2+ {[%eval -2.40]}
+43. Ke3 {[%eval -2.63]} Rxg2 {[%eval -1.18]}
+44. Kd4 {[%eval -1.42]} Bc6 {[%eval -1.67]}
+45. Rxh5 {[%eval -1.75]} Ra2 {[%eval -0.07]}
+46. Ne3 {[%eval -1.88]} Rd2+ {[%eval -1.65]}
+47. Kc4 {[%eval -2.00]} Bd7 {[%eval -1.85]}
+48. Rg5 {[%eval -2.25]} Be6+ {[%eval -2.21]}
+49. Kb4 {[%eval -2.61]} Rd4+ {[%eval -2.52]}
+50. Kb5 {[%eval -2.68]} Rd3 {[%eval -2.62]}
+51. Nc4+ {[%eval -4.10]} Bxc4+ {[%eval -4.42]}
+52. Kxc4 {[%eval -4.46]} Rd1 {[%eval -4.46]}
+53. Rxg7 {[%eval -4.98]} e3 {[%eval -5.29]}
+54. Rg2 {[%eval -5.31]} Ke5 {[%eval -5.17]}
+55. Kc3 {[%eval -5.31]} Ke4 {[%eval -5.40]}
+56. Kc2 {[%eval -5.35]} Rf1 {[%eval -5.25]}
+
+0-1
+
+[Event "Cheltenham"]
+[Site "Cheltenham"]
+[Date "1951.01.01"]
+[Round "1"]
+[White "Tartakower, Savielly"]
+[Black "Pirc, Vasja"]
+[Result "0-1"]
+[ECO "A03"]
+[Source "Masters"]
+
+1. f4 {[%eval -0.43]} d5 {[%eval -0.35]}
+2. e3 {[%eval -0.30]} Nf6 {[%eval -0.23]}
+3. b3 {[%eval -0.41]} g6 {[%eval -0.42]}
+4. Bb2 {[%eval -0.38]} Bg7 {[%eval -0.23]}
+5. Nf3 {[%eval -0.34]} O-O {[%eval -0.11]}
+6. Be2 {[%eval -0.24]} c5 {[%eval -0.28]}
+7. O-O {[%eval -0.25]} Nc6 {[%eval -0.07]}
+8. Ne5 {[%eval -0.18]} Bd7 {[%eval -0.13]}
+9. d3 {[%eval -0.16]} d4 {[%eval 0.10]}
+10. Nxd7 {[%eval 0.16]} Nxd7 {[%eval 0.16]}
+11. e4 {[%eval 0.07]} f5 {[%eval 0.05]}
+12. exf5 {[%eval 0.13]} gxf5 {[%eval 0.18]}
+13. Bf3 {[%eval 0.17]} Nf6 {[%eval 0.98]}
+14. Bxc6 {[%eval 1.09]} bxc6 {[%eval 1.21]}
+15. Nd2 {[%eval 1.20]} e5 {[%eval 1.11]}
+16. fxe5 {[%eval 0.96]} Ng4 {[%eval 1.03]}
+17. Nc4 {[%eval 1.05]} Qh4 {[%eval 1.44]}
+18. h3 {[%eval 1.41]} Nxe5 {[%eval 1.43]}
+19. Qe1 {[%eval 0.79]} Qh5 {[%eval 1.15]}
+20. Nxe5 {[%eval 0.80]} Rae8 {[%eval 0.78]}
+21. Qd1 {[%eval 0.40]} Qxd1 {[%eval 0.44]}
+22. Raxd1 {[%eval 0.40]} Rxe5 {[%eval 0.79]}
+23. Rde1 {[%eval 0.35]} Rfe8 {[%eval 0.24]}
+24. Rxe5 {[%eval 0.18]} Rxe5 {[%eval 0.16]}
+25. Kf2 {[%eval 0.13]} Bh6 {[%eval 0.10]}
+26. Re1 {[%eval 0.51]} Be3+ {[%eval 0.46]}
+27. Kf3 {[%eval 0.49]} f4 {[%eval 0.61]}
+28. Bc1 {[%eval 0.13]} Rg5 {[%eval 0.31]}
+29. Bxe3 {[%eval -0.28]} fxe3 {[%eval -0.24]}
+30. g4 {[%eval -0.51]} Kf7 {[%eval -0.30]}
+31. c3 {[%eval -0.39]} Ke6 {[%eval -0.22]}
+32. Rc1 {[%eval -0.13]} Kd5 {[%eval -0.06]}
+33. cxd4 {[%eval -0.96]} cxd4 {[%eval -1.06]}
+34. b4 {[%eval -1.21]} Rg6 {[%eval -0.73]}
+35. Rc5+ {[%eval -0.72]} Kd6 {[%eval -0.35]}
+36. Rc4 {[%eval -1.29]} Rf6+ {[%eval -1.49]}
+37. Kg3 {[%eval -1.55]} c5 {[%eval -1.85]}
+38. bxc5+ {[%eval -2.08]} Kd5 {[%eval -2.23]}
+39. Rc1 {[%eval -2.22]} Rc6 {[%eval -2.35]}
+40. Rf1 {[%eval -2.46]} Rxc5 {[%eval -2.66]}
+41. Rf8 {[%eval -3.10]} Rc3 {[%eval -3.72]}
+42. Rf7 {[%eval -4.89]} Rxd3 {[%eval -5.18]}
+43. Rxh7 {[%eval -5.46]} e2+ {[%eval -5.57]}
+44. Kf2 {[%eval -5.58]} Re3 {[%eval -5.89]}
+45. Ke1 {[%eval -5.85]} d3 {[%eval -6.11]}
+46. Rd7+ {[%eval -6.28]} Ke5 {[%eval -5.21]}
+47. h4 {[%eval -5.41]} Rh3 {[%eval -5.74]}
+48. Kd2 {[%eval -5.95]} Rh1 {[%eval -6.16]}
+49. Re7+ {[%eval -6.35]} Kf4 {[%eval -5.10]}
+50. g5 {[%eval -6.35]} Rd1+ {[%eval -6.48]}
+51. Kc3 {[%eval -6.57]} e1=Q+ {[%eval -6.61]}
+52. Rxe1 {[%eval -6.69]} Rxe1 {[%eval -6.86]}
+53. Kxd3 {[%eval -6.96]} Kf5 {[%eval -5.38]}
+54. Kc4 {[%eval -6.99]} Re4+ {[%eval -7.00]}
+55. Kb5 {[%eval -7.19]} Rxh4 {[%eval -7.76]}
+56. a4 {[%eval -7.82]} Kxg5 {[%eval -7.83]}
+57. a5 {[%eval -7.99]} Rh6 {[%eval -8.39]}
+
+0-1
+
