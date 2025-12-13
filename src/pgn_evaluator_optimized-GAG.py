@@ -40,8 +40,8 @@ QUICK_SCAN_MODES = {
 }
 
 # --- OPTIMIZATION SETTINGS ---
-BUFFER_SIZE = 100  # Number of games to buffer before writing
-DEFAULT_WRITE_CHUNK_SIZE = 1000  # Write output after every N games
+BUFFER_SIZE = 10  # Number of games to buffer before writing
+DEFAULT_WRITE_CHUNK_SIZE = 50  # Write output after every N games
 DEFAULT_NUM_WORKERS = max(1, int(mp.cpu_count() * 0.90))  # Use 90% of cores
 USE_MULTIPROCESSING = True
 ENGINE_HASH_MB = 128
@@ -238,7 +238,7 @@ def annotate_games_parallel():
     
     total_games = count_games(INPUT_PGN)
     
-    with open(OUTPUT_PGN, "w", encoding="utf-8", buffering=8192*4) as pgn_out:
+    with open(OUTPUT_PGN, "w", encoding="utf-8", buffering=1) as pgn_out:
         with mp.Pool(NUM_WORKERS, initializer=init_worker) as pool:
             # Use imap (not imap_unordered) to preserve game order
             results = pool.imap(
@@ -278,7 +278,7 @@ def annotate_games_sequential():
         total_games = count_games(INPUT_PGN)
         
         with open(INPUT_PGN, encoding="utf-8") as pgn_in, \
-             open(OUTPUT_PGN, "w", encoding="utf-8", buffering=8192*4) as pgn_out:
+             open(OUTPUT_PGN, "w", encoding="utf-8", buffering=1) as pgn_out:
             
             write_buffer = []
             games_processed = 0
