@@ -9,6 +9,9 @@ import chess.engine
 import chess.pgn
 import math
 import sys
+import platform
+import argparse
+from pathlib import Path
 
 # --- Configuration ---
 # --- CROSS-PLATFORM ENGINE PATH LOGIC ---
@@ -30,12 +33,6 @@ def get_engine_path():
 # STOCKFISH_PATH: Path to the executable. 
 # You need to download Stockfish separately and point this to it.
 STOCKFISH_PATH = get_engine_path()
-print(f"Using Stockfish engine path: {ENGINE_PATH}")
-
-# ANALYSIS_TIME: Dr. Regan uses fixed depth (e.g., depth=13) rather than time 
-# for consistency, but time is easier for casual testing. 
-# 0.1s is fast; for real accuracy, use at least 0.5s or depth=15.
-ANALYSIS_TIME = 0.1  
 
 # BOOK_MOVES: We skip the first 8 moves (16 ply) because playing known theory 
 # is memorization, not calculation skill.
@@ -66,12 +63,13 @@ def cp_to_win_probability(cp):
     # Some models use different constants, but the shape is what matters.
     return 1 / (1 + 10 ** (-cp / 400.0))
 
-def calculate_ipr(pgn_file_path):
+def calculate_ipr(pgn_file_path, engine_limit):
     print(f"Analyzing {pgn_file_path}...")
+    print(f"Using Limit: {engine_limit}")
     
     # Initialize Engine
     try:
-        engine = chess.engine.SimpleEngine.popen_uci(STOCKFISH_PATH)
+        engine = chess.engine.SimpleEngine.popen_uci(str(STOCKFISH_PATH))
     except FileNotFoundError:
         print(f"Error: Stockfish not found at {STOCKFISH_PATH}")
         return
@@ -97,7 +95,7 @@ def calculate_ipr(pgn_file_path):
 
                 # --- STEP 1: Establish the "Truth" (Best Move) ---
                 # We ask the engine: "What is the absolute best evaluation possible here?"
-                info_best = engine.analyse(board, chess.engine.Limit(time=ANALYSIS_TIME))
+                info_best = engine.analyse(board, engine_limit)
                 
                 # We use a cap for Mate scores (+/- 10000) so they don't break the math.
                 score_best = info_best["score"].white().score(mate_score=10000)
@@ -112,7 +110,7 @@ def calculate_ipr(pgn_file_path):
                 # --- STEP 2: Evaluate the Human's Actual Move ---
                 # We assume the move is played, then ask the engine "How good is this new position?"
                 board.push(move)
-                info_played = engine.analyse(board, chess.engine.Limit(time=ANALYSIS_TIME))
+                info_played = engine.analyse(board, engine_limit)
                 
                 # Important: Engine gives score for side-to-move. 
                 # If White moved, now it's Black's turn, so the engine gives Black's advantage.
@@ -155,3 +153,23 @@ def calculate_ipr(pgn_file_path):
             print(f"Estimated IPR: {int(ipr)}")
 
     engine.quit()
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Calculate Intrinsic Performance Rating (IPR) from PGN.")
+    parser.add_argument("pgn_file", help="Path to the PGN file")
+    
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--depth", type=int, help="Analysis depth (default: 15)")
+    group.add_argument("--time", type=float, help="Analysis time in seconds")
+    
+    args = parser.parse_args()
+    
+    if args.time:
+        limit = chess.engine.Limit(time=args.time)
+    elif args.depth:
+        limit = chess.engine.Limit(depth=args.depth)
+    else:
+        # Default behavior
+        limit = chess.engine.Limit(depth=15)
+        
+    calculate_ipr(args.pgn_file, limit)
