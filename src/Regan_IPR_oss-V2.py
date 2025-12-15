@@ -253,7 +253,7 @@ def index_pgn_games(path):
             offset = f.tell()
             line = f.readline()
             if not line: break
-            if line.startswith(b'[Event'):
+            if line.startswith(b'[Event '):
                 offsets.append(offset)
     return offsets
 
