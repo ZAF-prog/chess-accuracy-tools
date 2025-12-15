@@ -193,10 +193,10 @@ def worker_analyze_chunk(args):
     Worker process to analyze a chunk of games.
     Uses the persistent global 'worker_engine'.
     
-    Args: (chunk_id, offsets, pgn_path, depth, multipv, cache_dir)
+    Args: (chunk_id, offsets, pgn_path, depth, multipv, eval_scale, cache_dir)
     Note: engine_path is NOT passed here; it's handled by init_worker.
     """
-    chunk_id, offsets, pgn_path, depth, multipv, cache_dir = args
+    chunk_id, offsets, pgn_path, depth, multipv, eval_scale, cache_dir = args
     
     # Checkpoint result file
     result_file = cache_dir / f"chunk_{chunk_id}.pkl"
@@ -218,7 +218,7 @@ def worker_analyze_chunk(args):
                 if not game: continue
                 
                 # Analyze using the persistent engine
-                analyze_single_game(game, worker_engine, chunk_data, depth, multipv)
+                analyze_single_game(game, worker_engine, chunk_data, depth, multipv, eval_scale)
                 
     except Exception as e:
         # Do not quit the engine here; it must survive for the next chunk!
@@ -233,7 +233,7 @@ def worker_analyze_chunk(args):
         
     return f"Chunk {chunk_id} Done ({len(offsets)} games)"
 
-def analyze_single_game(game, engine, data_store, depth, multipv):
+def analyze_single_game(game, engine, data_store, depth, multipv, eval_scale=1.0):
     white = game.headers.get("White", "Unknown")
     black = game.headers.get("Black", "Unknown")
     
@@ -288,9 +288,10 @@ def analyze_single_game(game, engine, data_store, depth, multipv):
                 node = next_node
                 continue
                 
-            # 4. Format Scores (Centipawns to Pawns)
+            # 4. Format Scores (Centipawns to Pawns) and Scale
             # Adjust perspective so positive is always "good for the player to move"
-            raw_values = [x[1]/100.0 for x in res]
+            # Scale down modern engines (e.g. 0.75 or 0.8) to match 2011 calibration
+            raw_values = [(x[1]/100.0) * eval_scale for x in res]
             if board.turn == chess.BLACK:
                 raw_values = [-x for x in raw_values]
             
@@ -341,6 +342,7 @@ def main():
     parser.add_argument("--depth", type=int, default=14, help="Analysis depth (default: 14)")
     parser.add_argument("--cores", type=int, help="Force CPU cores (default: 80% of available)")
     parser.add_argument("--chunk-size", type=int, default=CHUNK_SIZE, help="Games per processing chunk")
+    parser.add_argument("--eval-scale", type=float, default=1.0, help="Scale engine evals (e.g. 0.8 for modern Stockfish)")
     parser.add_argument("--export-s", type=Path, help="Save aggregated S-set data to file")
     parser.add_argument("--use-s", type=Path, help="Load fixed S-set data from file")
     
@@ -399,7 +401,7 @@ def main():
     # Note: engine path is removed from here and passed to initializer
     pool_args = []
     for i, chunk in enumerate(chunks):
-        pool_args.append((i, chunk, args.pgn_file, args.depth, MULTI_PV, cache_dir))
+        pool_args.append((i, chunk, args.pgn_file, args.depth, MULTI_PV, args.eval_scale, cache_dir))
         
     # Run Pool with Initializer
     # initializer=init_worker ensures the engine starts once per process
@@ -441,108 +443,131 @@ def main():
     if total_moves == 0:
         print("WARNING: No moves were analyzed. Check engine config or game data.")
 
-    # Export S-Set
-    if args.export_s:
-        with open(args.export_s, 'wb') as f:
-            pickle.dump(global_s_set, f)
-        print(f"Exported {len(global_s_set)} positions to {args.export_s}")
+
         
     # Import S-Set
+    # Import S-Set
     fixed_s_set = None
+    calibration = None
+    
     if args.use_s:
         if args.use_s.exists():
             with open(args.use_s, 'rb') as f:
-                fixed_s_set = pickle.load(f)
-            print(f"Loaded fixed S-set with {len(fixed_s_set)} positions.")
+                loaded_data = pickle.load(f)
+                # Handle old format (list) vs new format (dict)
+                if isinstance(loaded_data, dict):
+                    fixed_s_set = loaded_data.get('positions')
+                    calibration = loaded_data.get('calibration')
+                else:
+                    fixed_s_set = loaded_data
+            
+            print(f"Loaded fixed S-set with {len(fixed_s_set) if fixed_s_set else 0} positions.")
+            if calibration:
+                print(f"Loaded Calibration: IPR = {calibration[0]:.2f} + {calibration[1]:.2f} * AE")
         else:
             print("Warning: specified S-set file not found.")
 
-    # 6. Calculate IPRs
-    print("\n--- Calculating IPRs ---")
-    final_output = []
+    # 6. Calculate IPRs and Calibrate if needed
+    print("\n--- Calibration & Calculation ---")
+    
+    # We first calculate AE for ALL players to enable regression
+    player_results = []
     
     for player, data in master_data.items():
-        if not data['test_set']: continue
-        
-        # We need a minimum amount of data to get a meaningful fit
-        if len(data['test_set']) < 50:
-            print(f"Skipping {player}: Insufficient moves ({len(data['test_set'])}).")
+        if not data['test_set'] or len(data['test_set']) < 50: 
             continue
-
-        print(f"Fitting {player} ({len(data['test_set'])} moves)...")
-
-        # Optimization Target: Maximize Log Likelihood
+            
+        # Fit s, c
         def neg_log_lik(params):
             s, c = params
-            if s <= 0.001 or c <= 0.001: return 1e9 # Boundary check
-            
+            if s <= 0.001 or c <= 0.001: return 1e9
             ll = 0
             for vals, played_idx in data['test_set']:
                 if played_idx >= len(vals): continue
-                
                 probs = calculate_move_probabilities(vals, s, c)
                 p = probs[played_idx] if played_idx < len(probs) else 0
-                
-                # Log likelihood accumulation
                 ll += math.log(p + 1e-12)
             return -ll
-            
-        # Perform Fitting
-        # s bounds: [0.01, 1.0], c bounds: [0.1, 2.0]
+
         try:
             res = minimize(neg_log_lik, [0.09, 0.5], bounds=[(0.01, 1.0), (0.1, 2.0)], method='L-BFGS-B')
             s_fit, c_fit = res.x
-        except Exception as e:
-            print(f"  Fit failed: {e}")
+        except Exception:
             continue
-
-        # Calculate AE_e on the Target S-Set
+            
+        # Calculate AE using Target Set
         target_s_set = fixed_s_set if fixed_s_set else data['solitaire_set']
-        
         total_ae = 0.0
-        count = 0
+        count = 0 
         
         for vals, deltas in target_s_set:
             probs = calculate_move_probabilities(vals, s_fit, c_fit)
-            
-            # AE = Sum(p_i * delta_i) for i >= 1 (alternative moves)
-            # probs[0] is best move (delta=0), so we slice probs[1:]
             if len(probs) > 1 and len(deltas) == len(probs)-1:
                 step_ae = 0.0
                 valid_step = True
-                
                 for p, d in zip(probs[1:], deltas):
                     if p > 1e-15:
                         if d == float('inf'):
                             valid_step = False; break
                         step_ae += p * d
-                
                 if valid_step and math.isfinite(step_ae):
                     total_ae += step_ae
                     count += 1
-                
-        if count == 0:
-            print(f"  Warning: No valid positions for AE calculation.")
-            continue
-
-        AE_e = total_ae / count
-        IPR = IPR_INTERCEPT + IPR_SLOPE * AE_e
-        
-        print(f"  s={s_fit:.4f}, c={c_fit:.4f} => AE={AE_e:.6f}, IPR={IPR:.0f}")
-
-        if math.isfinite(IPR):
-            # Calculate Average Elo safely
+                    
+        if count > 0:
+            AE_e = total_ae / count
             valid_elos = [e for e in data['elos'] if e > 0]
             avg_elo = int(sum(valid_elos)/len(valid_elos)) if valid_elos else 0
             
-            final_output.append({
+            player_results.append({
                 'Player': player,
                 'Games': data['games'],
                 'Elo': avg_elo,
-                's': round(s_fit, 4),
-                'c': round(c_fit, 4),
-                'IPR': int(IPR)
+                's': s_fit, 'c': c_fit,
+                'AE': AE_e
             })
+            print(f"Analyzed {player}: AE={AE_e:.6f}, Elo={avg_elo}")
+
+    # Perform Regression or Use Loaded/Default
+    final_intercept = IPR_INTERCEPT
+    final_slope = IPR_SLOPE
+    
+    if calibration:
+        final_intercept, final_slope = calibration
+        print("Using Loaded Calibration from S-set.")
+    else:
+        # Try to self-calibrate
+        valid_points = [(r['AE'], r['Elo']) for r in player_results if r['Elo'] > 0]
+        if len(valid_points) >= 3:
+            aes = [p[0] for p in valid_points]
+            elos = [p[1] for p in valid_points]
+            slope, intercept = np.polyfit(aes, elos, 1)
+            final_intercept = intercept
+            final_slope = slope
+            print(f"Self-Calibration Successful ({len(valid_points)} players).")
+            print(f"New Formula: IPR = {final_intercept:.2f} {final_slope:+.2f} * AE")
+        else:
+            print(f"Insufficient rated players ({len(valid_points)}) for calibration. Using Rybka defaults.")
+
+    # Calculate final IPRs
+    final_output = []
+    for res in player_results:
+        IPR = final_intercept + final_slope * res['AE']
+        res['IPR'] = int(IPR)
+        res['s'] = round(res['s'], 4)
+        res['c'] = round(res['c'], 4)
+        print(f"  {res['Player']:20} AE={res['AE']:.6f} -> IPR={int(IPR)}")
+        final_output.append(res)
+        
+    # Export S-Set (with Calibration)
+    if args.export_s:
+        with open(args.export_s, 'wb') as f:
+            export_data = {
+                'positions': global_s_set,
+                'calibration': (final_intercept, final_slope)
+            }
+            pickle.dump(export_data, f)
+        print(f"Exported S-set and Calibration to {args.export_s}")
 
     # 7. Write CSV Output
     if final_output:
