@@ -79,6 +79,9 @@ def first_pass_index_games(input_filepath):
     # Set to collect all unique player names before standardization
     raw_player_names = set()
     
+    # State tracking
+    has_seen_moves = False
+    
     # Track the position of [Source] tag if it precedes [Event]
     pending_source_offset = None
 
@@ -101,13 +104,15 @@ def first_pass_index_games(input_filepath):
 
             # Check for PGN tag pairs
             if decoded_line.startswith('['):
-                # Track [Source] tags as potential game start
-                if decoded_line.startswith('[Source '):
-                    pending_source_offset = line_start_offset
+                # Track [Source] tags as potential game start ONLY if we've finished the previous game (seen moves)
+                # This prevents [Source] tags inside the *current* game's header from splitting the game.
+                if decoded_line.startswith('[Source ') and has_seen_moves:
+                    if pending_source_offset is None:
+                         pending_source_offset = line_start_offset
                     
                 elif decoded_line.startswith('[Event '):
                     # Start of a new game. Finalize the previous one.
-                    # Use pending_source_offset if we saw [Source] before this [Event]
+                    # Use pending_source_offset if we saw a [Source] after the LAST game's moves
                     game_start = pending_source_offset if pending_source_offset is not None else line_start_offset
                     
                     if game_metadata:
@@ -123,7 +128,10 @@ def first_pass_index_games(input_filepath):
                         'end_offset': None
                     }
                     game_metadata.append(current_game_info)
-                    pending_source_offset = None  # Reset for next game
+                    
+                    # Reset state for new game
+                    pending_source_offset = None
+                    has_seen_moves = False
                 
                 # Extract White and Black player names
                 elif decoded_line.startswith('[White '):
@@ -147,6 +155,19 @@ def first_pass_index_games(input_filepath):
 
                     current_game_info['black'] = player
                     raw_player_names.add(player)
+            
+            # If line is not empty and not a tag, it's likely a move line
+            elif decoded_line:
+                has_seen_moves = True
+                # If we see moves, any pending source offset from BEFORE these moves is invalid/stale
+                # (though logic should prevent setting it unless has_seen_moves was True from PREVIOUS game)
+                if pending_source_offset is not None:
+                     # This implies we saw [Source] -> Moves -> [Event].
+                     # Standard PGN implies [Source] was part of the *upcoming* game?
+                     # No, if we see moves, then the [Source] we saw earlier was just a header tag for THIS game (or previous).
+                     # PGN structure: [Tags] \n\n Moves \n\n [Tags]
+                     # If we are in Moves, we are clearly NOT in the "Pre-Event Source Tag" zone of the NEXT game.
+                     pending_source_offset = None
 
         # Finalize the last game's end offset (EOF)
         if game_metadata and game_metadata[-1]['end_offset'] is None:
@@ -257,34 +278,43 @@ def write_output_pgn(input_filepath, output_filepath, game_metadata):
                 raw_game_content = infile.read(game_length).decode('utf-8', errors='ignore')
                 
                 # Rebuild the game tags with standardized names
-                # This is necessary because the original file still has the *unstandardized* names
-                
-                # Find the end of the tags (first empty line or moves section)
-                tag_lines = []
-                move_lines = []
-                in_tags = True
-                
+                segments = []
+                current_tags = []
+                current_moves = []
+                state = "TAGS" # TAGS or MOVES
+
                 for line in raw_game_content.splitlines():
-                    if in_tags:
-                        if line.startswith('['):
-                            if line.startswith('[White '):
-                                line = f'[White "{game["white"]}"]'
-                            elif line.startswith('[Black '):
-                                line = f'[Black "{game["black"]}"]'
-                            # All other tags (Event, Date, etc.) are kept as-is
-                            tag_lines.append(line)
-                        else:
-                            # Found the moves section/empty line
-                            in_tags = False
-                            if line.strip(): # If the first move line is not empty
-                                move_lines.append(line)
-                    elif line.strip():
-                         move_lines.append(line)
+                    striped = line.strip()
+                    if striped.startswith('['):
+                        if state == "MOVES":
+                            # Transition from MOVES -> TAGS implies a new game block started in this chunk
+                            segments.append( (current_tags, current_moves) )
+                            current_tags = []
+                            current_moves = []
+                            state = "TAGS"
+                        
+                        # Handle standardization for the PRIMARY game (first segment)
+                        # or just pass through for subsequent embedded games
+                        if not segments and line.startswith('[White '):
+                            line = f'[White "{game["white"]}"]'
+                        elif not segments and line.startswith('[Black '):
+                            line = f'[Black "{game["black"]}"]'
+                        
+                        current_tags.append(line)
+                    elif striped:
+                        # Non-empty, non-tag line -> Move
+                        state = "MOVES"
+                        current_moves.append(line)
+                    # Ignore empty lines, we will generate structural newlines
                 
-                # Reconstruct the PGN entry: tags, blank line, moves, blank line
-                rebuilt_pgn = '\n'.join(tag_lines) + '\n\n' + '\n'.join(move_lines) + '\n\n'
-                
-                outfile.write(rebuilt_pgn.encode('utf-8'))
+                # Append final segment
+                segments.append( (current_tags, current_moves) )
+
+                # Write all segments
+                for tags, moves in segments:
+                    if not tags and not moves: continue
+                    rebuilt_pgn = '\n'.join(tags) + '\n\n' + '\n'.join(moves) + '\n\n'
+                    outfile.write(rebuilt_pgn.encode('utf-8'))
 
     print("Output complete.")
     return kept_games_count
