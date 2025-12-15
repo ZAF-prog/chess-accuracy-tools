@@ -371,28 +371,37 @@ def main():
     total_moves = sum(len(p['test_set']) for p in master_data.values())
     print(f"Total aggregated data: {len(master_data)} players, {total_moves} moves analyzed.")
 
-    # 5. Perform (s, c) Fitting
-    print("\n--- Performing Parameter Fitting (s, c) ---")
+    # 5. Perform (s, c) Fitting (GLOBAL)
+    print("\n--- Performing Global Parameter Fitting (s, c) ---")
     final_output = []
-    MIN_MOVES = 50 
-
+    MIN_MOVES = 30 
+    
+    # Aggregate ALL data
+    global_test_set = []
+    all_elos = []
+    global_first_year = float('inf')
+    global_last_year = float('-inf')
+    
     for player, data in master_data.items():
-        if len(data['test_set']) < MIN_MOVES:
-            # Clean up temporary year markers
-            first_year = 'N/A'
-            last_year = 'N/A'
-            print(f"Skipping {player}: Insufficient moves ({len(data['test_set'])} < {MIN_MOVES}).")
-            continue
+        if len(data['test_set']) > 0:
+            global_test_set.extend(data['test_set'])
+            all_elos.extend(data['elos'])
+            global_first_year = min(global_first_year, data['first_year'])
+            global_last_year = max(global_last_year, data['last_year'])
             
-        print(f"Fitting {player} ({len(data['test_set'])} moves)...")
-
-        # Optimization Target: Maximize Log Likelihood
+    total_moves_fit = len(global_test_set)
+    print(f"Total moves for fitting: {total_moves_fit}")
+    
+    if total_moves_fit < MIN_MOVES:
+         print(f"Insufficient total moves ({total_moves_fit} < {MIN_MOVES}). Fitting skipped.")
+    else:     
+        # Optimization Target: Maximize Log Likelihood (Global)
         def neg_log_lik(params):
             s, c = params
             if s <= 0.001 or c <= 0.001: return 1e9 # Boundary check
             
             ll = 0
-            for vals, played_idx in data['test_set']:
+            for vals, played_idx in global_test_set:
                 if played_idx >= len(vals): continue
                 
                 # Calculate probability of the move that was played
@@ -404,6 +413,7 @@ def main():
             return -ll
             
         # Perform Fitting
+        print(f"Fitting global parameters on {total_moves_fit} moves...")
         try:
             # Bounds: s [0.01, 1.0], c [0.1, 2.0]
             res = minimize(neg_log_lik, [0.09, 0.5], bounds=[(0.01, 1.0), (0.1, 2.0)], method='L-BFGS-B')
@@ -415,15 +425,14 @@ def main():
             s_fit, c_fit = 0, 0
 
         if success:
-            avg_elo = int(sum(e for e in data['elos'] if e > 0) / len([e for e in data['elos'] if e > 0])) if [e for e in data['elos'] if e > 0] else 0
-            
-            first_year = int(data['first_year']) if data['first_year'] != float('inf') else 'N/A'
-            last_year = int(data['last_year']) if data['last_year'] != float('-inf') else 'N/A'
+            avg_elo = int(sum(all_elos) / len(all_elos)) if all_elos else 0
+            first_year = int(global_first_year) if global_first_year != float('inf') else 'N/A'
+            last_year = int(global_last_year) if global_last_year != float('-inf') else 'N/A'
             
             print(f"  Result: s={s_fit:.4f}, c={c_fit:.4f}")
 
             final_output.append({
-                'Player': player,
+                'Player': "ALL_DATA_POOLED",
                 'Elo': avg_elo,
                 's': round(s_fit, 4),
                 'c': round(c_fit, 4),
