@@ -40,7 +40,10 @@ from pathlib import Path
 from collections import defaultdict
 from scipy.optimize import minimize
 from typing import List, Tuple, Dict, Any
-import psutil
+try:
+    import psutil
+except ImportError:
+    psutil = None
 import atexit
 
 # --- CONFIGURATION ---
