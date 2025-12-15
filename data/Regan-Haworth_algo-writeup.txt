@@ -1,0 +1,64 @@
+[RH11] K. Regan and G.M c C. Haworth. Intrinsic chess ratings. In Proceedings of AAAI 2011,
+San Francisco, 2011.
+[RMH11] K. Regan, B. Macieja, and G.M c C. Haworth. Understanding distributions of chess per-
+formances. In Proceedings of ACG 13, Tilburg, NED, Lect. Notes. Comp. Sci. Springer-
+Verlag, 2011.
+
+This response provides the comprehensive Internet search results for the two references and a detailed explanation of the "Solitaire Chess" data setup based on the cited research.
+
+## 1. Comprehensive Internet Search for References
+
+The two references are foundational papers for the **Intrinsic Performance Rating (IPR)** methodology developed by Kenneth W. Regan and his collaborators.
+
+### [RH11]
+* **Full Title:** "Intrinsic Chess Ratings"
+* **Authors:** Kenneth W. Regan and Guy McCrossan Haworth
+* **Publication:** In *Proceedings of AAAI 2011 (Twenty-Fifth AAAI Conference on Artificial Intelligence)*, San Francisco, 2011.
+* **Summary:** This paper introduced the core concept of Intrinsic Performance Ratings, developing and testing mathematical formulas to measure a player's skill based on the **quality of their moves** (decision-making) rather than the outcome (result) of the game. It established the correspondence between the model's two intrinsic skill parameters ($s$ and $c$) and the internationally standard Elo rating system.
+
+### [RMH11]
+* **Full Title:** "Understanding Distributions of Chess Performances"
+* **Authors:** Kenneth W. Regan, Bartlomiej Macieja, and Guy McCrossan Haworth
+* **Publication:** In *Advances in Computer Games, 13th International Conference (ACG 2011), Tilburg, The Netherlands.* Published in *Lecture Notes in Computer Science* (LNCS 7168), Springer-Verlag (2012).
+* **Summary:** This work extended the IPR model to analyze the statistical distribution of chess performances across large populations of players. It provided evidence that chess ratings have remained stable over time and demonstrated how the Intrinsic Performance Ratings could be used to compare rating systems between different populations (e.g., a national federation vs. FIDE).
+
+***
+
+## 2. Solitaire Chess Data Setup
+
+The IPR methodology is described by the authors as a scientific, mathematical version of the traditional "Solitaire Chess" game, which was a common feature in chess magazines.
+
+### The Traditional "Solitaire Chess" Concept
+In traditional "Solitaire Chess," a reader plays through a game, pausing before certain moves (typically by the winner) to choose an alternative from several plausible options provided by the puzzle composer. The reader earns "points" based on the quality of their choice, and their total point score at the end corresponds to a skill level or Elo rating (e.g., Master, Expert, Amateur).
+
+### The IPR "Solitaire Chess" Data Setup (Scientific Methodology)
+
+The IPR model transforms this concept into a statistically rigorous data analysis system:
+
+#### 1. Data Source: Computer Analysis
+The "points" awarded for moves are replaced by suitably-scaled differences in the positional evaluation values ($\delta$) given to moves by authoritative chess engine programs (e.g., Rybka 3 in earlier work).
+
+* **Multi-PV Analysis:** Crucially, the analysis uses **Multi-PV (Multi-Principal Variation)** to obtain reliable, objective values not just for the best move, but for all *reasonable* alternative moves a human might consider in that position.
+* **Objective Value:** The engine is run to a sufficient depth to be "relatively omniscient" compared to the human player, typically using a fixed depth (e.g., 13 ply) to generate the evaluation values ($v_0$ for the best move, $v_i$ for the $i$-th alternative move).
+
+#### 2. The Core Data Point ($\delta$ and Scaling)
+The primary data used to train the model is the **scaled difference** ($\delta$) between the best move's value and the value of the move actually played.
+
+* **Logarithmic Scaling:** The model employs an empirically-determined **logarithmic scaling law**. This scaling is crucial because the impact of a small difference in centipawns is not linear; human players are far more sensitive to a difference of (for example) 20 centipawns when the position is nearly equal than when one side has an overwhelming advantage (e.g., 100 centipawns ahead).
+
+#### 3. Data Filtering and Relevance
+Not all moves from a game are included in the dataset used to calculate the IPR. Moves are filtered to focus on genuinely decisive decisions:
+
+* **Opening Excluded:** Game turns 1 through 8 are typically omitted.
+* **Repetitions Excluded:** Turns involved in position repetitions are excluded.
+* **Overwhelming Advantage Excluded:** Turns where the chess program judges one side to have an overwhelming advantage (e.g., greater than 300 centipawns) are omitted, as player skill is less discernible in positions that are already won or lost.
+
+#### 4. The Model and Final IPR
+
+The dataset (the move choices and their scaled objective values) is then used to fit a probability model that relates the move's quality to the player's intrinsic skill.
+
+1.  **Skill Parameters:** By fitting the model to the actual frequencies of move choice from large sets of games, two intrinsic skill parameters are determined for the player or event:
+    * **Sensitivity ($s$):** The ability to discriminate among small or moderate differences in move value.
+    * **Consistency ($c$):** The degree to which a player avoids inferior moves overall.
+2.  **IPR Projection:** The fitted $s$ and $c$ values are then used to generate a projected point value on a **standardized "Solitaire Set"**. This projected value is read off a correspondence table (which was trained on players with known Elo ratings) to yield the final Intrinsic Performance Rating (IPR).
+
