@@ -42,7 +42,7 @@ MULTI_PV = 5            # Number of principal variations
 IPR_INTERCEPT = 3571
 IPR_SLOPE = -15413
 MATE_SCORE = 10000
-CHUNK_SIZE = 50         # Games per chunk
+CHUNK_SIZE = 10         # Games per chunk (Lowered for better feedback)
 
 # --- GLOBAL WORKER VARIABLE ---
 # This variable holds the engine instance within each worker process.
@@ -357,7 +357,7 @@ def main():
     # 1. Indexing
     print("Indexing PGN...")
     offsets = index_pgn_games(args.pgn_file)
-    print(f"Found {len(offsets)} games.")
+    print(f"Found {len(offsets)} games.", flush=True)
     
     if not offsets:
         print("No games found in PGN.")
@@ -385,15 +385,16 @@ def main():
 
     # Memory calculation
     total_ram = get_system_memory_mb()
-    target_ram = total_ram * 0.8
+    # Reserve 2GB for OS, then take 60% of remainder
+    available_for_chess = max(0, total_ram - 2048)
+    target_ram = available_for_chess * 0.6
+    
     hash_per_worker = int(target_ram / use_cores)
     # Safety caps
     hash_per_worker = max(16, hash_per_worker)
-    # Stockfish often hashes in powers of 2, but accepts any.
-    # We should cap it reasonably (e.g. not more than 8GB per core generally supported?)
-    # Stockfish max is usually huge.
-    print(f"System Memory: {int(total_ram)} MB. Allocating 80% ({int(target_ram)} MB) to Hash.")
-    print(f"Hash per worker: {hash_per_worker} MB")
+    
+    print(f"System Memory: {int(total_ram)} MB. Allocating 60% of avail ({int(target_ram)} MB) to Hash.", flush=True)
+    print(f"Hash per worker: {hash_per_worker} MB", flush=True)
     
     chunks = [offsets[i:i + args.chunk_size] for i in range(0, len(offsets), args.chunk_size)]
     
