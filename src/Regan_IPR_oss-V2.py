@@ -126,6 +126,10 @@ def calculate_move_probabilities(values: List[float], s: float, c: float) -> Lis
         return [p/total for p in probs]
     return probs
 
+def create_player_data():
+    """Factory for player data structure (picklable)."""
+    return {'test_set': [], 'solitaire_set': [], 'games': 0, 'elos': []}
+
 # --- WORKER FUNCTIONS ---
 
 def worker_analyze_chunk(args):
@@ -146,7 +150,7 @@ def worker_analyze_chunk(args):
     except Exception as e:
         return f"Chunk {chunk_id} Failed: Engine error {e}"
 
-    chunk_data = defaultdict(lambda: {'test_set': [], 'solitaire_set': [], 'games': 0, 'elos': []})
+    chunk_data = defaultdict(create_player_data)
 
     try:
         with open(pgn_path, 'r', encoding='utf-8') as f:
@@ -313,7 +317,7 @@ def main():
     
     # 5. Aggregate Results
     print("Aggregating results...")
-    master_data = defaultdict(lambda: {'test_set': [], 'solitaire_set': [], 'games': 0, 'elos': []})
+    master_data = defaultdict(create_player_data)
     
     # S-set accumulation (global) if exporting
     global_s_set = [] 
