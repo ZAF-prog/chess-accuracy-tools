@@ -1,0 +1,621 @@
+
+
+--- PAGE 1 ---
+Intrinsic Ratings Compendium
+(WORKING DRAFT )
+Kenneth W. Regan
+Department of CSE
+University at Buffalo
+Amherst, NY 14260 USA
+regan@buffalo.edu
+September 29, 2012
+Abstract
+This paper keeps a running compendium of Intrinsic Performance Ratings (IPR’s) for se-
+lected events and player performances in the recorded history of chess. The IPR methodology
+is based on [RH11, RMH11] and updated here.
+1 Introduction
+The idea of Intrinsic Performance Ratings (IPR’s) is to judge skill based on the quality of decisions
+made rather than the outcomes of contests. Aside from the issue that the outcome depends on the
+skill of opponents and on factors variously called “luck,” there is a simple sample-size motivation.
+A chess professional may play 50 games in a given year and call that a lot, but as a statistical
+sample this is scant. However, those games may average 30 important move decisions, yielding a
+healthy sample of 1,500 moves. Analysis of those moves by computer programs to sufﬁcient depth
+to be stronger than the player can then provide both an objective measure of skill, and reasonably
+informative conﬁdence intervals on the assessment.
+A common feature of chess magazines or columns, one long called “Solitaire Chess” in maga-
+zines of the US Chess Federation, involves pausing before each move (usually those by the winning
+side) of a selected game, and choosing from several plausible alternatives. A strong player com-
+posing the puzzle has provided point values for each choice. At the end the reader adds up the
+points for all of his/her choices, and there is a table giving corresponding skill levels. The levels
+are often given as ratings on the international Elo scale, where for instance 2200 is commonly the
+threshold for “master,” or it may give prose names master, expert, amateur, etc. for those levels.
+We do not know of any attempt to make this correspondence scientiﬁc.
+The IPR model is basically “Solitaire Chess” done scientiﬁcally, using suitably-scaled dif-
+ferences in values given to moves by authoritative chess programs as the “points.” Although the
+differences are negative, the model would be unchanged if we declared that the best move is always
+worth 5 points and differences in the usual pawn/centipawn units of chess engines were subtracted
+1
+
+--- PAGE 2 ---
+from it. The correspondence between points and Elo rating is ﬁrst established by training the model
+on large sets of games by players with established Elo ratings. The model generates projections of
+how many points a player with a given Elo rating would score on a standardized “Solitaire Set.”
+To generate an IPR for a player’s performance in an event, or for a whole event, or for any set
+of games, we run the training process in reverse: First we train the model on that set of games.
+Then we take the parameter values that were ﬁtted in the training, and use them to generate a
+projected points value on the Solitaire Set. The corresponding Elo value is then read off. We do
+not go directly from the parameters to Elo because there is more than one dependent parameter
+in the model, and the tradeoff between the two parameters called s and c in the current simple
+form already seems difﬁcult to assess. The “Solitaire” step also affords a reasonable way to project
+conﬁdence intervals that currently seem to be no worse than about 30% too narrow—i.e., modeling
+error requires no more than a 1.4 multiplier on them.
+Full details are in the papers [RH11, RMH11], after earlier work [DHR09, HRD10] that built
+on [Haw03, Haw07]. The main differences from work by Guid and Bratko [GB06, GPB08, GB11]
+are the use of Multi-PV analysis to obtain authoritative values for all reasonable options, not just
+the top move(s) and the move played, and the discovery that human players behave as though
+relative values are scaled in proportion to the overall value of a position. The latter means that a
+value difference of, say, 20 centipawns between movesm1 and m2 as judged by an engine yields a
+greater incidence of human players selecting the better move m1 when the position is (say) within
+20 centipawns of being equal, as when one side is (say) 100 centipawns ahead. Indeed a “marginal
+centipawn” seems to have 5ximpact when the engine’s evaluation is +20 to one side as when it is
++100. This is like the idea that price movements in stocks or bonds should be plotted in proportion
+to the current price, i.e. on log-log paper rather than standard axes.
+To reprise some details from [RMH11, RMH11], the deﬁning equation of the particular model
+used there and here is the following, which relates the probabilitypi of the i-th alternative move to
+p0 for the best move and its difference in value:
+log(1/pi)
+log(1/p0) = e−(δ
+s)
+c
+, where δi =
+∫ v0
+vi
+1
+1 +|z|dz. (1)
+Here when the value v0 of the best move and vi of the i-th move have the same sign, the integral
+giving the scaled difference simpliﬁes to|log(1+ v0)−log(1+ vi)|. This employs the empirically-
+determined logarithmic scaling law.
+The skill parameters are calledsfor “sensitivity” andcfor “consistency” becauseswhen small
+can enlarge small differences in value, whilecwhen large sharply cuts down the probability of poor
+moves. The equation solved directly for pi becomes
+pi = pα
+0 where α= e−(δ
+s)
+c
+. (2)
+The constraint ∑
+ipi = 1thus determines all values. By ﬁtting these derived probabilities to actual
+frequencies of move choice in training data, we can ﬁnd values of s and c corresponding to the
+training set.
+Once we have sand c, these equations give us projected probabilitiespi,t for every legal move
+mi in the position at every relevant game turn t. Per arbitrary choice we omit: game turns 1–8,
+turns involved in repetitions of the position, and turns where the program judges an advantage
+2
+
+--- PAGE 3 ---
+greater than 300 centipawns for either side. These and some other modeling decisions are given
+detail and justiﬁcation in [RH11].
+To set up the correspondence to Elo rating, we deﬁne theexpected average errorstatistic AEe.
+For comparison we also deﬁne the expected move-matchingstatistic MMe, which is the projected
+number of agreement’s with the computer program’s ﬁrst choice of move. The following deﬁni-
+tions tacitly assume that all move decisions are independent, which although violated by the idea
+of multi-move “plans,” is arguably close enough when one has a large set of moves in various
+games. Note that they also give projected standard deviations for these two quantities.
+MMe = ∑T
+t=1 p0,t, σ MMe =
+√∑T
+t=1 p0,t(1 −p0,t)
+AEe = 1
+T
+∑T
+t=1
+∑
+i≥1 pi,tδi,t, σ AEe =
+√
+1
+T
+∑T
+t=1
+∑
+i≥1 pi,t(1 −pi,t)δi,t.
+(3)
+Table 1 gives the values of AEe that were obtained by ﬁrst ﬁtting the training data for 2006–09,
+to obtain s,c, then computing the expectation for the union of the training sets. It was found
+that a smaller set S of moves comprising the games of the 2005 and 2007 world championship
+tournaments and the 2006 world championship match gave identical results to the fourth decimal
+place, so Swas used as the ﬁxed “Solitaire Set.”
+Elo 2700 2600 2500 2400 2300 2200
+AEe .0572 .0624 .0689 .0749 .0843 .0883
+Table 1: Correspondence between Elo rating from 2006–2009 and projected Average Error.
+A simple linear ﬁt then yields the rule to produce the Elo rating for any (s,c), which we call
+an “Intrinsic Performance Rating” (IPR) when the (s,c) are obtained by analyzing the games of a
+particular event and player(s).
+IPR = 3571−15413 ·AEe. (4)
+This expresses, incidentally, that at least from the vantage of R YBKA 3 run to reported depth
+13, perfect play has a rating under 3600. This is reasonable when one considers that if a 2800
+player such as Vladimir Kramnik is able to draw one game in ﬁfty, the opponent can never have
+a higher rating than that. The ﬁtted s,c values obtained in [RH11], including those forming a
+“central artery” of values sfit,cfit in a single ﬁtted line, became the following table of Elo values
+in [RMH11]:
+2006–2009
+Elo s c IPR 2σe range 2σa range #moves cfit sfit IPRfit
+2700 .078 .502 2690 2648–2731 2632–2748 7,032 .513 .080 2698
+2600 .092 .523 2611 2570–2652 2553–2668 7,807 .506 .089 2589
+2500 .092 .491 2510 2480–2541 2468–2553 16,773 .499 .093 2528
+2400 .098 .483 2422 2393–2452 2381–2464 20,277 .492 .100 2435
+2300 .108 .475 2293 2257–2328 2243–2342 17,632 .485 .111 2304
+2200 .123 .490 2213 2170–2257 2153–2274 11,386 .478 .120 2192
+2100 .134 .486 2099 2048–2150 2028–2170 9,728 .471 .130 2072
+3
+
+--- PAGE 4 ---
+2000 .139 .454 1909 1853–1966 1830–1989 9,471 464 .143 1922
+1900 .159 .474 1834 1790–1878 1769–1893 16,195 .457 .153 1802
+1800 .146 .442 1785 1741–1830 1723–1848 15,930 .450 .149 1801
+1700 .153 .439 1707 1642–1772 1616–1798 8,429 .443 .155 1712
+1600 .165 .431 1561 1496–1625 1470–1651 9,050 .436 .168 1565
+1991–1994
+2700 .079 .487 2630 2576–2683 2555–2704 4,954 .513 .084 2659
+2600 .092 .533 2639 2608–2670 2596–2682 13,425 .506 .087 2609
+2500 .098 .500 2482 2453–2512 2441–2524 18,124 .499 .092 2537
+2400 .101 .484 2396 2365–2426 2353–2438 19,968 .492 .103 2406
+2300 .116 .480 2237 2204–2270 2191–2284 20,717 .485 .117 2248
+2200 .122 .477 2169 2136–2202 2123–2215 21,637 .478 .122 2173
+1976–1979
+2600 .094 .543 2647 2615–2678 2602–2691 11,457 .506 .087 2609
+2500 .094 .512 2559 2524–2594 2509–2609 11,220 .499 .091 2547
+2400 .099 .479 2397 2363–2431 2350–2444 16,635 .492 .103 2406
+2300 .121 .502 2277 2240–2313 2226–2328 15,284 .485 .116 2257
+Table 2: Elo correspondence in three four-year intervals.
+Nlote that the ﬁtted Elo values don’t say exactly 2700, 2600, 2500, etc. This is the natural
+result of doing a linear ﬁt. Some points in the 1600–2100 range are anomalous, and this may
+owe to various factors pertaining to the quality of the games and gamescores. Only the Elo 2200
+through 2700 data for 2006–2009 were used in the linear ﬁt for the ratings.
+The procedure for generating an IPR for a given set T of positions and chosen moves is the
+following—where Sis the ﬁxed “Solitaire Set” deﬁned above.
+1. Do a regression on the test set T to ﬁt sT,cT.
+2. Use sT,cT to project AEe on the reference set S(not on T).
+3. Derive IPR from AEe via equation (4).
+4. Use sT,cT on the test set T (not on S) only to project σT = σAEe.
+5. Output [IPR −2σT,IPR + 2σT] as the proposed “95%” conﬁdence interval.
+As noted toward the start of this section, early testing suggests replacing σT by σa = 1.4σT to get
+an “actual” 95% conﬁdence interval given the model as it stands. Hence we show both ranges in
+the tables. These ﬁts and conﬁdence intervals underlie teh following results.
+2 IPRs of Tournaments
+Since the IPR is based only on game analysis and has no functional component from Elo, it extends
+before the adoption of Elo to the beginning of chess. Hence we include some tournaments before
+1971, while noting the correspondence bewteen IPR and tournament category after that.
+4
+
+--- PAGE 5 ---
+Event IPR 2σe range 2σa range
+St. Petersburg 1896 quadrangular 2390 2342–2438 2323–2458
+Cambridge Springs 1904, top 9 2432 2385–2479 2366–2497
+St. Petersburg 1914 prelims 2332 2281–2382 2261–2402
+St. Petersburg 1914 ﬁnals 2575 2534–2617 2517–2633
+New York 1927 2579 2536–2622 2518–2639
+A VRO 1938 2605 2564–2646 2547–2663
+The Hague 1948 2510 2444–2576 2417–2602
+Curacao 1962 Candidates’ 2538 2494–2582 2476–2600
+Table 3: Intrinsic Ratings of some pre-1971 events
+Player, player in event, or entire event IPR
+Howard Staunton, versus P. de Saint-Amant 1899
+Staunton, all major matches 1940
+Adolf Anderssen, London 1851 2004
+Anderssen, versus Paul Morphy 2112
+Morphy, versus Anderssen 2124
+Morphy, 59 most important games overall 2344
+Anderssen, 1860 onward 2100
+Wilhelm Steinitz, up to 1870 1937
+Steinitz, 1871–1882 2320
+Steinitz, London 1883 2486
+Steinitz, all games versus Zukertort 2352
+Steinitz, all games versus Chigorin 2146
+Steinitz, all games versus Gunsberg 2495
+Steinitz, all games versus Lasker 2334
+Johannes Zukertort, all games 2188
+Zukertort, London 1883 2445
+Zukertort, all games with Steinitz 2199
+Emanuel Lasker, all games with Steinitz 2471
+Jose Ra´ul Capablanca at New York, 1927 2936
+Capablanca, A VRO 1938 2680
+Capablanca, Buenos Aires Olympiad ﬁnals, 1939 2709
+Paul Keres at The Hague 1948 2657
+Table 4: Some historical player IPR’s
+Event cat: Elo IPR 2σe range 2σa range IPR-Elo #moves
+Las Palmas 1996 21: 2756 2697 2612–2781 2579–2815 -59 1,760
+Linares 1998 21: 2752 2715 2651–2780 2625–2805 -37 2,717
+Linares 2000 21: 2751 2728 2645–2810 2612–2843 -23 1,636
+Dortmund 2001 21: 2755 2752 2760–2834 2637–2866 -3 1,593
+5
+
+--- PAGE 6 ---
+Mexico 2007 21: 2751 2708 2647–2769 2623–2793 -43 3,213
+Morelia-Linares 2008 21: 2755 2855 2808–2903 2789–2922 +100 3,453
+Nanjing 2008 21: 2751 2766 2691–2842 2660–2873 +15 1,936
+Bilbao GSF 2008 21: 2768 2801 2731–2872 2702–2900 +33 2,013
+Linares 2009 21: 2755 2750 2696–2803 2675–2825 -5 3,830
+Soﬁa M-Tel 2009 21: 2754 2711 2626–2795 2592–2829 -51 1,937
+Nanjing 2009 21: 2763 2715 2644–2785 2616–2814 -48 2,192
+Moscow Tal Mem. 2009 21: 2763 2731 2663–2800 2635–2827 -32 2,706
+Linares 2010 21: 2757 2681 2607–2756 2577–2786 -76 2,135
+Nanjing 2010 21: 2766 2748 2674–2821 2645–2850 -18 1,988
+Shanghai 2010 21: 2759 2829 2727–2931 2686–2972 +70 920
+Bilbao 2010 22: 2789 2904 2822–2987 2788–3020 +115 1,060
+Moscow Tal Mem. 2010 21: 2757 2690 2629–2750 2604–2775 -67 3,493
+Bazna 2011 21: 2757 2750 2675–2825 2645–2855 -7 1,885
+Sao Paulo/Bilbao 2011 22: 2780 2626 2539–2713 2504–2748 -154 1,998
+Moscow Tal Mem. 2011 22: 2776 2807 2755–2860 2734–2881 +31 3,401
+Wijk aan Zee Tata A 2012 21: 2755 2723 2681–2765 2664–2782 -32 6,092
+Averages 21: 2760 2747 -13 2,474
+Weighted by moves 21: 2760 2742 -17.2
+Aggregate run, all moves 21: 2760 2742 2727–2756 2721–2762 -18 51,962
+Table 5: Intrinsic Ratings of Category 21 and higher stan-
+dard tournaments, through January 2012 (Tata 2012 not yet
+in averages).
+Event cat: Elo IPR 2σe range 2σa range IPR-Elo #moves
+Linares 1999 20: 2735 2717 2652–2782 2627–2808 -18 3,134
+Astana 2001 20: 2733 2771 2691–2850 2660–2882 +38 1,713
+Linares 2002 20: 2732 2702 2631–2773 2603–2801 -30 2,270
+Dortmund 2002 B 20: 2727 2669 2539–2800 2487–2852 -58 780
+Linares 2003 20: 2733 2695 2628–2762 2601–2789 -38 2,549
+Linares 2004 20: 2731 2739 2673–2805 2647–2831 +8 2,251
+Linares 2005 20: 2743 2699 2628–2771 2599–2800 -44 2,418
+San Luis 2005 20: 2738 2657 2597–2716 2574–2740 -81 3,694
+Morelia-Linares 2006 20: 2732 2628 2563–2692 2538–2718 -104 3,621
+Soﬁa M-Tel 2006 20: 2744 2744 2678–2810 2651–2836 0 2,197
+Hoogeveen Essent 2006 20:2730 2485 2343–2628 2286–2685 -245 844
+Moscow Tal Memorial 2006 20: 2727 2732 2667–2796 2642–2822 +5 2,767
+Morelia-Linares 2007 20: 2746 2717 2659–2775 2636–2798 -29 3,284
+Dortmund 2007 20: 2727 2815 2744–2885 2715–2914 +88 1,812
+Moscow Tal Memorial 2007 20: 2741 2748 2685–2811 2660–2836 +7 2,579
+Wijk aan Zee Corus A 2008 20: 2742 2730 2687–2773 2670–2790 -12 5,774
+Soﬁa M-Tel 2008 20: 2737 2690 2605–2775 2571–2809 -47 1,869
+Moscow Tal Memorial 2008 20: 2745 2664 2587–2741 2556–2772 -81 2,764
+6
+
+--- PAGE 7 ---
+Bazna Kings 2009 20: 2729 2664 2577–2751 2542–2785 -65 1,897
+Dortmund 2009 20: 2744 2803 2728–2879 2697–2909 +59 1, 597
+Bilbao GSF 2009 20: 2739 2613 2474–2752 2418–2807 -126 806
+Astrakhan GP 2010 20: 2730 2796 2759–2833 2744–2848 +66 6,090
+Bazna Kings 2010 20: 2742 2718 2642–2793 2612–2823 -24 1,904
+London Classic 2010 20: 2725 2668 2594–2742 2565–2771 -57 2,312
+Wijk aan Zee Tata 2011 20: 2740 2751 2707–2795 2690–2812 11 5,576
+Dortmund 2011 20: 2731 2704 2638–2770 2612–2796 -27 2,521
+Hoogeveen Unive 2011 20: 2732 2662 2533–2791 2482–2843 -70 829
+London Classic 2011 20: 2748 2709 2650–2768 2626–2792 -39 2,594
+Reggio Emilia 2011-12 20: 2744 2554 2463–2645 2426–2681 -190 1,834
+Averages 20: 2736 2698 -38 2,561
+Weighted by moves 20: 2736 2711 -25.3
+Aggregate run 20: 2736 2712 2700–2725 2695–2730 -24 74,280
+Table 6: IPR’s of all Category 20 events through January
+2012
+Event cat: Elo IPR 2σe range 2σa range IPR-Elo #moves
+Montreal 1979 15: 2622 2588 2534–2642 2513–2663 -34 4,732
+Linares 1993 18: 2676 2522 2469–2574 2449–2595 -154 6,129
+Linares 1994 18: 2685 2517 2461–2574 2438–2596 -168 5,536
+Dortmund 1995 17: 2657 2680 2615–2744 2589–2770 +23 2,459
+Dortmund 1996 18: 2676 2593 2518–2667 2489–2697 -83 2,796
+Dortmund 1997 18: 2699 2639 2569–2709 2541–2737 -60 2,583
+Dortmund 1998 18: 2699 2655 2579–2732 2548–2762 -44 2,284
+Dortmund 1999 19: 2705 2749 2655–2844 2617–2882 +44 1,364
+Sarajevo 1999 19: 2703 2664 2592–2737 2563–2766 +19 2,755
+Corus 2006 19: 2715 2736 2693–2779 2676–2797 +21 5,800
+Corus 2007 19: 2717 2763 2716–2811 2697–2829 +46 5,095
+Soﬁa M-Tel 2007 19: 2725 2576 2482–2670 2445–2708 -149 2,184
+London 2009 18: 2696 2700 2630–2770 2602–2798 +4 2,360
+Table 7: Some other events, for comparison to Tables 5
+and 6.
+The IPR’s are on-balance below the tournament average ratings, but the latter’s aggregate is
+just within the narrower conﬁdence interval of the aggregate IPR. The regressions are not linear,
+so the parity of the aggregate run with the weighted average is notable. The comparison events are
+selective but still show no inﬂationary trend.
+7
+
+--- PAGE 8 ---
+3 IPR’s of Matches
+Again we begin with some historical matches and their results. We distinguish the follow-
+ing under a more-liberal deﬁnition of world championship besides the standard one: An-
+dressen earned the title by unofﬁcial but fairly general understanding from London 1851, and
+then lost it in 1858 to Paul Morphy, who vacated it back to Anderssen before 1866. See
+http://www.worldchesslinks.net/ezc08.html for our inclusion of the 1866–1876
+Steinitz matches, while we consider Karpov-Korchnoi 1974 to have been known as a likely cham-
+pionship match at the time of its playing.
+Event/Player IPR 2σe range 2σa range #moves
+Morphy, New York 1857 2289 2077–2502 1992–2587 368
+Opponents, all games 1859 1589–2129 1481–2237 384
+Combined 2065 1891–2240 1821–2310 752
+Morphy-Paulsen ﬁnal 2196 1984–2408 1900–2492 397
+Morphy 2265 1978–2663 1863–2668 195
+Paulsen 2116 1805–2427 1681–2551 202
+Morphy-Loewenthal 1858 2252 2074–2429 2003–2500 802
+Loewenthal 1965 1675–2255 1559–2371 403
+Morphy 2561 2365–2758 2286–2837 399
+Morphy-Harrwitz 1858 2443 2247–2640 2168–2719 472
+Harrwitz 2496 2253–2739 2156–2836 240
+Morphy 2433 2130–2735 2009–2856 232
+Harrwitz from game 3 2433 2167–2698 2061–2804 173
+Morphy from game 3 2582 2259–2905 2129–3035 165
+Morphy-Mongredien 1859 1825 1457–2193 1310–2340 262
+Mongredien 1194 557–1831 302–2086 133
+Morphy 2304 1931–2677 1782–2827 129
+Table 8: 19th-Century early matches.
+Event/Player IPR 2σe range 2σa range #moves
+Wch 1858 2121 1903–2339 1816–2426 633
+Anderssen 2122 1811–2433 1686–2557 318
+Morphy 2124 1820–2428 1698–2550 315
+Wch 1866 2091 1908–2274 1834–2347 797
+Anderssen 2137 1886–2387 1785–2488 402
+Steinitz 2063 1798–2328 1692–2433 395
+Wch 1866B 2263 2077–2449 2002–2523 666
+Steinitz 2306 2053–2559 1951–2660 332
+Bird 2245 1981–2508 1876–2613 334
+Wch 1872 2191 1978–2403 1893–2489 635
+Steinitz 2388 2139–2638 2039–2738 315
+Zukertort 1911 1555–2266 1413–2408 320
+8
+
+--- PAGE 9 ---
+Wch 1876 2088 1834–2341 1733–2443 405
+Blackburne 1927 1547–2306 1396–2458 206
+Steinitz 2266 1935–2596 1803–2728 199
+Wch 1886 2338 2206–2470 2154–2523 1,189
+Steinitz 2352 2150–2553 2070–2634 593
+Zukertort 2320 2148–2493 2079–2562 596
+Wch 1889 2257 2099–2414 2036–2477 978
+Chigorin 2188 1957–2420 1864–2512 493
+Steinitz 2322 2112–2532 2028–2616 485
+Wch 1890 2397 2269–2526 2218–2577 1,020
+Gunsberg 2302 2106–2499 2027–2578 509
+Steinitz 2493 2327–2660 2260–2727 511
+Wch 1892 2045 1868–2221 1798–2291 1,000
+Chigorin 2073 1846–2300 1756–2390 498
+Steinitz 2039 1769–2309 1661–2417 502
+Wch 1894 2424 2315–2533 2271–2576 1,390
+Lasker 2570 2432–2708 2377–2763 691
+Steinitz 2269 2100–2438 2032–2506 699
+Wch 1896 2361 2236–2485 2187–2535 1,249
+Lasker 2317 2143–2490 2074–2560 618
+Steinitz 2414 2238–2590 2167–2661 631
+Table 9: 19th-Century world championship matches.
+Event/Player IPR 2σe range 2σa range #moves
+Wch 1907 2676 2565–2786 2521–2830 889
+Lasker 2869 2734–3004 2680–3058 440
+Marshall 2438 2268–2607 2201–2675 449
+Wch 1908 2451 2337–2564 2292–2610 1190
+Lasker 2603 2462–2743 2406–2799 595
+Tarrasch 2300 2122–2479 2050–2551 595
+Wch 1909 2675 2561–2788 2516–2833 640
+Janowski 2537 2379–2696 2315–2759 322
+Lasker 2811 2660–2962 2599–3023 318
+Wch 1910A 2701 2586–2816 2541–2862 845
+Lasker 2735 2577–2892 2514–2955 422
+Schlechter 2703 2544–2861 2481–2925 423
+Wch 1910B 2411 2259–2563 2199–2624 815
+Janowski 2357 2141–2573 2055–2660 409
+Lasker 2467 2255–2680 2169–2765 406
+Wch 1921 2667 2566–2768 2525–2809 869
+Capablanca 2808 2683–2932 2633–2982 431
+Lasker 2525 2364–2686 2300–2750 438
+9
+
+--- PAGE 10 ---
+Wch 1927 2770 2705–2835 2678–2861 2,069
+Alekhine 2812 2731–2893 2699–2925 1,035
+Capablanca 2730 2626–2834 2585–2876 1,034
+Wch 1929 2521 2440–2601 2408–2633 1792
+Alekhine 2567 2460–2675 2418–2717 896
+Bogolyubov 2462 2341–2582 2293–2631 896
+Wch 1934 2417 2346–2488 2317–2517 1927
+Alekhine 2451 2352–2549 2313–2588 964
+Bogolyubov 2364 2259–2469 2217–2511 963
+Wch 1935 2559 2481–2638 2449–2670 1878
+Alekhine 2595 2486–2703 2443–2747 936
+Euwe 2521 2407–2635 2361–2681 942
+Wch 1937 2400 2293–2508 2251–2550 1626
+Alekhine 2427 2265–2588 2200–2653 816
+Euwe 2359 2217–2502 2160–2559 810
+Table 10: 20th-Century world championship matches before
+WW II.
+Event/Player IPR 2σe range 2σa range #moves
+Wch 1951 2555 2498–2611 2476–2633 1848
+Botvinnik 2517 2427–2606 2391–2642 922
+Bronstein 2583 2511–2654 2483–2682 926
+Wch 1954 2715 2643–2786 2614–2815 1516
+Botvinnik 2706 2597–2814 2554–2857 757
+Smyslov 2717 2620–2813 2581–2852 759
+Wch 1957 2668 2601–2735 2575–2762 1352
+Botvinnik 2713 2627–2799 2593–2833 676
+Smyslov 2611 2504–2719 2461–2762 676
+Wch 1958 2626 2562–2690 2537–2716 1596
+Botvinnik 2792 2714–2871 2683–2902 799
+Smyslov 2438 2336–2540 2295–2581 797
+Wch 1960 2693 2614–2772 2582–2804 1432
+Botvinnik 2690 2585–2795 2543–2837 715
+Tal 2683 2561–2805 2512–2854 717
+Wch 1961 2570 2490–2649 2459–2681 1726
+Botvinnik 2665 2559–2771 2517–2813 864
+Tal 2466 2348–2584 2301–2631 862
+Wch 1963 2744 2686–2802 2663–2826 1565
+Botvinnik 2730 2649–2811 2617–2844 782
+Petrosian 2762 2679–2845 2645–2878 783
+Wch 1966 2681 2629–2733 2608–2754 1645
+Petrosian 2631 2556–2706 2526–2736 824
+10
+
+--- PAGE 11 ---
+Spassky 2724 2652–2797 2623–2826 821
+Wch 1969 2547 2489–2604 2466–2628 1517
+Petrosian 2552 2472–2631 2440–2663 758
+Spassky 2530 2446–2615 2412–2649 759
+Table 11: World Championship Matches in Moscow before
+the Elo System. ( Note: these use a revised methodology to
+which the whole paper will be converted.)
+Event/Player Elo [avg] IPR 2σe range 2σa range IPR-Elo #moves
+Wch 1972 2723 2646 2546–2747 2505–2787 -77 1,367
+Fischer 2785 2650 2496–2805 2434–2867 680
+Spassky 2660 2643 2512–2775 2459–2827 687
+Wch 1974 2685 2662 2575–2744 2541–2778 -23 1,787
+Karpov 2700 2652 2529–2775 2480–2824 -48 889
+Korchnoi 2670 2667 2551–2783 2505–2829 -3 898
+Wch 1978 2695 2708 2640–2775 2613–2802 +13 2,278
+Karpov 2725 2722 2632–2812 2596–2848 1,141
+Korchnoi 2665 2697 2598–2796 2558–2836 1,137
+Wch 1981 2698 2749 2659–2839 2623–2875 +51 1,176
+Karpov 2700 2852 2731–2972 2683–3020 587
+Korchnoi 2695 2651 2520–2782 2486–2835 589
+Wch 1984 g1-9 2710 2588 2442–2735 2382–2793 589
+Karpov 2705 2669 2484–2854 2409–2928 293
+Kasparov 2715 2487 2251–2723 2157–2817 296
+Wch 1984 g10-29 2710 3002 2924–3080 2892–3111 828
+Karpov 2705 2957 2826–3087 2774–3139 411
+Kasparov 2715 3042 2949–3135 2912–3172 417
+Wch 1984 g30-48 2710 2771 2674–2868 2635–2907 1,029
+Karpov 2705 2678 2532–2824 2473–2883 515
+Kasparov 2715 2863 2736–2990 2686–3041 514
+Wch 1984 all 2710 2810 2751–2870 2727–2894 +100 2,446
+Karpov 2705 2761 2672–2851 2636–2887 1,219
+Kasparov 2715 2859 2781–2937 2750–2969 1,227
+Wch 1985 2710 2720 2636–2805 2602–2838 +10 1,420
+Karpov 2720 2701 2583–2819 2536–2866 712
+Kasparov 2700 2734 2612–2856 2564–2905 708
+Wch 1986 2723 2841 2763–2919 2732–2951 +118 1,343
+Karpov 2705 2807 2700–2914 2657–2957 670
+Kasparov 2740 2907 2801–3014 2758–3057 673
+Wch 1987 2720 2742 2660–2824 2627–2857 +22 1,490
+Karpov 2700 2838 2730–2946 2687–2989 742
+Kasparov 2740 2659 2540–2779 2492–2826 748
+Wch 1990 2765 2620 2527–2712 2491–2749 -145 1,622
+11
+
+--- PAGE 12 ---
+Karpov 2730 2547 2403–2692 2345–2749 812
+Kasparov 2800 2674 2554–2794 2507–2841 810
+Wch 1993 2730 2683 2578–2787 2537–2829 -47 1,187
+Kasparov 2805 2631 2477–2786 2415–2847 593
+Short 2655 2734 2594–2875 2538–2931 594
+Wch 1995 2760 2702 2557–2847 2499–2905 -58 767
+Anand 2725 2617 2400–2834 2313–2921 382
+Kasparov 2795 2807 2625–2989 2552–3062 385
+Wch 2000 2810 2918 2829–3008 2794–3043 +108 867
+Kasparov 2849 2851 2706–2997 2648–3055 435
+Kramnik 2770 2969 2858–3080 2814–3125 432
+Wch 2004 2756 2871 2763–2978 2721–3020 +115 726
+Kramnik 2770 2945 2815–3074 2764–3126 363
+Leko 2741 2785 2605–2695 2533–3037 363
+Wch 2006 2778 2802 2709–2895 2672–2933 +24 911
+Kramnik 2743 2791 2660–2922 2608–2974 453
+Topalov 2813 2832 2705–2958 2655–3009 458
+Wch 2008 2778 2679 2528–2830 2468–2890 -99 562
+Anand 2783 2723 2506–2940 2419–3026 279
+Kramnik 2772 2610 2393–2827 2306–2914 283
+Wch 2010 2796 2720 2613–2826 2571–2869 -76 985
+Anand 2787 2737 2572–2903 2506–2969 491
+Topalov 2805 2703 2566–2839 2512–2894 494
+Averages 2740 2742 +2.25 19,147
+Weighted by moves 2730 2736 +6.03
+Aggregate run 2734 2735 2712–2758 2703–2767 +1 20,934
+Table 12: World Championship matches since 1972.
+Event/Player IPR 2σe range 2σa range #moves
+Capablanca-Kostic 1919 2545 2355–2734 2280–2810 372
+Capablanca 3001 2818–3184 2744–3257 185
+Kostic 2005 1704–2305 1584–2425 187
+Fischer-Taimanov CM 1971 2680 2765 2625–2905 2569–2961 +85 528
+Fischer 2740 2923 2752–3095 2683–3164 +183 263
+Taimanov 2620 2616 2402–2829 2317–2914 -4 265
+Fischer-Larsen CM 1971 2710 2478 2183–2773 2066–2890 -232 359
+Fischer 2760 2830 2468–3192 2323–3336 +70 178
+Larsen 2660 2187 1772–2602 1606–2768 -473 181
+Fischer-Petrosian CM 1971 2700 2814 2689–2939 2639–2989 +114 496
+Fischer 2760 2969 2828–3111 2771–3167 +209 247
+Petrosian 2640 2646 2435–2858 2350–2942 +6 249
+Fischer, all 1971 matches 2754 2921 2808–3034 2763–3079 +157 688
+Karpov-Polugayevsky CM 1974 2665 2651 2505–2798 2446–2857 -14 461
+12
+
+--- PAGE 13 ---
+Karpov 2700 2754 2580–2928 2511–2998 +54 229
+Polugaevsky 2630 2472 2210–2734 2105–2839 -158 232
+Karpov-Spassky CM 1974 2675 2748 2642–2854 2600–2896 +73 737
+Karpov 2700 2692 2519–2866 2449–2935 -8 368
+Spassky 2650 2810 2685–2935 2635–2985 +160 369
+Karpov-Portisch Milan 1975 ﬁnal 2670 2620 2448–2791 2380–2860 -50 321
+Karpov 2705 2731 2552–2909 2480–2981 +26 159
+Portisch 2635 2388 2066–2709 1937–2838 -247 162
+Fischer-Spassky 1992 2673 2698 2626–2770 2597–2799 +25 2,077
+Fischer 2785 2724 2622–2825 2582–2866 -61 1,037
+Spassky 2560 2659 2554–2764 2512–2806 +99 1,040
+WWch 1996 2540 2591 2474–2708 2427–2755 +51 657
+Susan Polgar 2550 2728 2558–2898 2490–2966 +178 329
+Xie Jun 2530 2478 2322–2634 2260–2697 -52 328
+WWch 2011 2589 2828 2713–2943 2667–2989 +239 570
+Hou Yifan 2578 2971 2849–3093 2801–3142 +393 283
+Humpy Koneru 2600 2680 2479–2881 2398–2961 +80 287
+Table 13: Some other post-1900 matches.
+4 IPRs of Big Swiss Event(s)
+We analyzed all 624 available games from 647 played at the 2011 Canadian Open, including all by
+players with FIDE ratings 2400 and above, which form an unbiased sample. Table 14 shows the
+IPR’s and compares them to Chess Federation of Canada ratings before and after the event, FIDE
+ratings before, and the tournament performance ratings (TPR’s) based on the CFC ratings. The
+ﬁnal two columns are the conﬁdence intervals for the IPR alone. The ﬁnal rows summarize the
+sample, the whole event (152 players minus 3 early withdrawals leaving 149), and the whole event
+weighted by number of games played and number of analyzed moves. The bottom-right restricts to
+the 115 players who had FIDE ratings before the event. All players with 2400+ Canadian ratings
+are named. While the IPR’s for tournaments with average ratings over 2700 are by-and-large low,
+these are markedly high especially relative to thse players’ FIDE ratings. The time control was 40
+moves in 90 minutes plus 30 second increment, then G/30 plus the same increment.
+Name Can R FIDE R TPR IPR IPR-TPR 2σe range 2σa range #moves
+Arencibia 2537 2476 2745 2723 -22 2491–2956 2398–3049 273
+Benjamin 2641 2553 2688 2412 -276 2196–2629 2110–2715 373
+Bluvshtein 2634 2611 2622 2533 -89 2323–2744 2239–2828 316
+Bojkov 2544 2544 2595 2154 -441 1765–2543 1610–2698 219
+Calugar 2437 2247 2144 2301 +157 2091–2512 2007–2596 327
+Cheng 2500 2385 2661 2728 +67 2502–2954 2411–3044 297
+Cummings 2459 2350 2473 2833 +360 2683–2983 2623–3043 322
+Fedorowicz 2508 2454 2422 2390 -32 2088–2692 1967–2813 199
+Gerzhoy 2647 2483 2622 2963 +341 2802–3124 2738–3189 211
+13
+
+--- PAGE 14 ---
+Golod 2576 2582 2582 2638 +56 2376–2899 2272–3003 218
+Hebert 2486 2414 2519 2789 +270 2598–2979 2522–3055 285
+Krnan 2470 2390 2651 2694 +43 2488–2900 2405–2982 266
+Krush 2578 2487 2539 2497 -42 2217–2717 2189–2805 316
+Meszaros 2409 2418 2278 2413 +133 2219–2607 2141–2684 337
+Mikhalevski 2664 2569 2519 2616 +96 2412–2820 2330–2902 248
+Milicevic 2400 2288 2352 2113 -240 1799–2426 1674–2552 214
+Mulyar 2422 2410 2412 2636 +224 2483–2788 2422–2849 378
+Noritsyn 2597 2425 2563 2394 -171 2166–2621 2075–2713 286
+Pechenkin 2408 2297 2309 2648 +339 2439–2857 2355–2940 311
+Perelshteyn 2532 2534 2650 2629 -21 2425–2833 2343–2915 258
+Perez Rod’z 2467 2467 2676 2627 -49 2321–2933 2198–3056 195
+Plotkin 2411 2243 2260 2715 +455 2570–2861 2512–2919 330
+Regan 2422 2409 2268 2525 +257 2323–2728 2242–2809 356
+Rozentalis 2614 2571 2666 2721 +55 2528–2913 2452–2990 291
+Sambuev 2739 2528 2571 2677 +106 2499–2855 2428–2926 400
+Samsonkin 2532 2378 2707 2535 -172 2267–2802 2159–2910 233
+Sapozhnikov 2424 2295 2480 2404 -76 2203–2605 2122–2685 341
+Shabalov 2618 2577 2549 2639 +90 2417–2861 2328–2590 262
+Thavandiran 2447 2320 2607 2622 +15 2360–2884 2255–2989 254
+Yoos 2439 2373 2289 1939 -350 1607–2271 1474–2404 268
+Zenyuk 2429 2222 2342 2790 +448 2606–2975 2532–3049 229
+Averages 2516 2429 2508 2558 +50
+Std. Dev. 92 157 218
+Whole event: 149 Restricted to FIDE-rated players: 115
+Average 2144 2142 2117 2203 2211 2139
+Std. Dev. 258 261 379 345 229 220
+Wtd. avgs. IPR CanR FIDE R
+By games 2156 2154 2134 2219 2221 2147
+By moves 2173 2172 2161 2242 2236 2161
+Table 14: Comparison of FIDE and CFC ratings, TPR’s, and
+IPR’s for 2011 Canadian Open
+1. The IPR’s have similar overall average to the Canadian ratings, especially under weighting
+by games or moves.
+2. FIDE ratings of Canadian players are deﬂated relative to apparent skill. This is commonly
+believed to be due to a lack of playing opportunities in FIDE-rated events.
+3. The IPR’s have higher deviations from their own mean than the TPR’s.
+4. The IPR’s have large deviation, and yet several TPR’s fall outside even the 2.8-sigma range.
+This may constrain the usefulness of the IPR as an estimator of the TPR.
+Event/Player Elo IPR 2σe range 2σa range IPR-Elo #moves
+14
