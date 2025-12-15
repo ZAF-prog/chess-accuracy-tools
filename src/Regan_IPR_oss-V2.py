@@ -28,6 +28,7 @@ import chess.engine
 import chess.pgn
 import numpy as np
 import math
+import csv
 import sys
 import argparse
 import pickle
@@ -322,10 +323,14 @@ def main():
     # S-set accumulation (global) if exporting
     global_s_set = [] 
     
-    for pkl in cache_dir.glob("chunk_*.pkl"):
+    pickle_files = list(cache_dir.glob("chunk_*.pkl"))
+    print(f"Found {len(pickle_files)} checkpoint files in {cache_dir}")
+
+    for pkl in pickle_files:
         try:
             with open(pkl, 'rb') as f:
                 chunk_data = pickle.load(f)
+                files_loaded = 0
                 for player, pdata in chunk_data.items():
                     master_data[player]['test_set'].extend(pdata['test_set'])
                     master_data[player]['solitaire_set'].extend(pdata['solitaire_set'])
@@ -334,8 +339,16 @@ def main():
                     
                     if args.export_s:
                         global_s_set.extend(pdata['solitaire_set'])
+                print(f"  Loaded {pkl.name}: {len(chunk_data)} players, {sum(len(p['test_set']) for p in chunk_data.values())} moves analyzed")
         except Exception as e:
             print(f"Error reading checkpoint {pkl}: {e}")
+            
+    total_players = len(master_data)
+    total_moves = sum(len(p['test_set']) for p in master_data.values())
+    print(f"Total aggregated data: {total_players} players, {total_moves} moves.")
+    
+    if total_moves == 0:
+        print("WARNING: No moves were analyzed. Check if engine is working or if filtered (Book/Garbage time).")
 
     # Export S-Set if requested
     if args.export_s:
@@ -358,8 +371,12 @@ def main():
     final_output = []
     
     for player, data in master_data.items():
-        if not data['test_set']: continue
+        if not data['test_set']: 
+            print(f"Skipping {player}: No test set data.")
+            continue
         
+        print(f"Fitting parameters for {player} ({len(data['test_set'])} moves)...")
+
         # Fit parameters
         # Optimization: s in [0.01, 1.0], c in [0.1, 2.0]
         # Log likelihood maximization
@@ -376,6 +393,7 @@ def main():
             
         res = minimize(neg_log_lik, [0.09, 0.5], bounds=[(0.01, 1.0), (0.1, 2.0)], method='L-BFGS-B')
         s_fit, c_fit = res.x
+        print(f"  Fit result: s={s_fit:.4f}, c={c_fit:.4f} (Success: {res.success})")
         
         # Calculate AE_e
         # If fixed_s_set is provided, use that. Otherwise use player's own solitaire_set (from their games)
@@ -389,13 +407,25 @@ def main():
             # deltas are for moves[1:]
             # probs[0] is best move (delta=0)
             if len(probs) > 1 and len(deltas) == len(probs)-1:
-                step_ae = sum(p * d for p, d in zip(probs[1:], deltas))
-                total_ae += step_ae
-                count += 1
+                step_ae = 0.0
+                for p, d in zip(probs[1:], deltas):
+                    # Avoid 0 * inf = NaN
+                    if p > 1e-15:
+                        if d == float('inf'):
+                            # If probability is non-zero but delta is inf, error is huge
+                            step_ae = float('inf')
+                            break
+                        step_ae += p * d
+                
+                if math.isfinite(step_ae):
+                    total_ae += step_ae
+                    count += 1
                 
         AE_e = total_ae / count if count > 0 else 0
         IPR = IPR_INTERCEPT + IPR_SLOPE * AE_e
         
+        print(f"  Calculated AE_e={AE_e:.6f} -> IPR={IPR:.2f}")
+
         if math.isfinite(IPR):
             avg_elo = int(sum(data['elos'])/len(data['elos'])) if data['elos'] else 0
             final_output.append({
@@ -406,16 +436,25 @@ def main():
                 'c': round(c_fit, 4),
                 'IPR': int(IPR)
             })
-            print(f"Player: {player:20} IPR: {int(IPR)} (s={s_fit:.3f}, c={c_fit:.3f})")
+            print(f"  -> Added to results.")
+        else:
+            print(f"  -> Invalid IPR (infinite/NaN). Skipping.")
 
     # 7. Write CSV
+    print(f"Prepare to write CSV. Records: {len(final_output)}")
+    
     if final_output:
         csv_path = args.pgn_file.parent / (args.pgn_file.stem + "_IPR_V2.csv")
-        with open(csv_path, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=['Player', 'Games', 'Elo', 's', 'c', 'IPR'])
-            writer.writeheader()
-            writer.writerows(sorted(final_output, key=lambda x: x['Player']))
-        print(f"Results saved to {csv_path}")
+        try:
+            with open(csv_path, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.DictWriter(f, fieldnames=['Player', 'Games', 'Elo', 's', 'c', 'IPR'])
+                writer.writeheader()
+                writer.writerows(sorted(final_output, key=lambda x: x['Player']))
+            print(f"Results successfully saved to: {csv_path.resolve()}")
+        except Exception as e:
+            print(f"Error writing CSV: {e}")
+    else:
+        print("No results found to write to CSV (final_output is empty).")
 
 if __name__ == "__main__":
     multiprocessing.freeze_support()
