@@ -425,15 +425,26 @@ def main():
             s_fit, c_fit = 0, 0
 
         if success:
-            avg_elo = int(sum(all_elos) / len(all_elos)) if all_elos else 0
+            filtered_elos = [e for e in all_elos if e > 0]
+            if filtered_elos:
+                avg_elo = int(sum(filtered_elos) / len(filtered_elos))
+                min_elo = min(filtered_elos)
+                max_elo = max(filtered_elos)
+            else:
+                avg_elo = 0
+                min_elo = 0
+                max_elo = 0
+            
             first_year = int(global_first_year) if global_first_year != float('inf') else 'N/A'
             last_year = int(global_last_year) if global_last_year != float('-inf') else 'N/A'
             
             print(f"  Result: s={s_fit:.4f}, c={c_fit:.4f}")
 
             final_output.append({
-                'Player': "ALL_DATA_POOLED",
-                'Elo': avg_elo,
+                'filename': args.pgn_file.name,
+                'AvgElo': avg_elo,
+                'MinElo': min_elo,
+                'MaxElo': max_elo,
                 's': round(s_fit, 4),
                 'c': round(c_fit, 4),
                 'FirstYear': first_year,
@@ -443,7 +454,7 @@ def main():
     # 6. Write/Append to CSV
     if final_output:
         csv_path = args.output_csv
-        fields = ['Player', 'Elo', 's', 'c', 'FirstYear', 'LastYear']
+        fields = ['filename', 'AvgElo', 'MinElo', 'MaxElo', 's', 'c', 'FirstYear', 'LastYear']
         
         # Check if file exists to determine if header is needed
         file_exists = csv_path.exists()
@@ -457,7 +468,7 @@ def main():
                     writer.writeheader()
                     
                 writer.writerows(final_output)
-            print(f"\nSuccessfully appended {len(final_output)} player results to: {csv_path.resolve()}")
+            print(f"\nSuccessfully appended results to: {csv_path.resolve()}")
         except Exception as e:
             print(f"Error writing/appending to CSV: {e}")
     else:
