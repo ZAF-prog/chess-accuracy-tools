@@ -1,0 +1,179 @@
+
+--- PAGE 7 ---
+All of these curves were found to give similar results, largely owing to the way they
+approximate each other near the origin. We standardized our results on the inverse-
+exponential family.
+5 Data Methodology and Experiments
+Two large sets of data were taken, the former acting as a control for the latter. The for-
+mer comprises approximately 150,000 games of chess, including every match for the
+world championship, every qualifying match for the championship, the top round-robin
+tournaments from London 1851 onward, large selections from the Chess Olympiads,
+every USSR/Russia and USA Championship, and a host of other kinds of chess compe-
+tition including rapid, blitz, correspondence, and computer play. These were scripted
+by running Rybka 3 in so-called Single-PV mode, whereby it computes a full evalu-
+ation only for the preferred move, to reported depth 13-ply in the Arena chess GUI
+[Blume2010], which logs the evaluation of each move and other information automat-
+ically to a text ﬁle.
+These runs re-created a somewhat simpler form of the Guid-Bratko experiment
+[Guid and Bratko2006]. Similar to there, each game was begun on move 9 since earlier
+moves are often repeated and are considered part of common opening theory. Moves
+where one side was already established as being more than 3 pawns ahead according
+to Rybka 3 were discarded; [Guid and Bratko2006] used a similar 2-pawn cutoff for
+Crafty run to 12 ply, but 3 pawns was felt better for Rybka 3 owing to its deeper
+search. The percentage of moves on which the player and Rybka 3 agreed, called
+the move-match percentage (mm), were tallied for each player in each event. The
+difference in evaluation in cases where the player chose a sub-optimal move according
+to Rybka 3, summed and averaged over all moves, comprised our version of the Guid-
+Bratko “Average Difference” (ad) statistic.
+When the average difference was plotted against the overall evaluationeof a given
+position for the player to move, it was found that the former scaled markedly up with
+|e|. The effect was so pronounced that in many kinds of chess events, the same players
+when judged ahead by only 0.5 pawns showed a 60-70% higher average-difference
+than when the position was judged very close to dead-even. Since it seemed strange
+to infer that players in such cases were performing 60–70% worse, it was decided to
+institute a scale correction. This was done by integrating a line differential ℓ(x). Thus
+if e= +0.50 for a White move turn, but the move mi played was judged a 1.25 pawn
+error, the δ(mi) value was recorded as the integral of ℓ(x) from −0.75 to +0.50. It
+was found that a simple proportional scale correction equalized the global ad statistics
+in relation to efairly well.
+The main data set comprised games in which both players were within 10 Elo rating
+points of one of the “milepost” values: 2700, 2600, 2500, . . . , run under standard time
+controls in individual-player round-robin or small-Swiss tournaments. Team events
+and large-Swiss (meaning more than six times as many players as rounds) tournaments
+were excluded. Games were taken from three time periods: 2006–2009, 1991–1994,
+and 1976–1979. These games were evaluated to depth 13 ply in 50-PV mode; since
+most positions have fewer than 50 legal moves, and all but a trace with more legal
+6
+
+--- PAGE 8 ---
+moves have fewer than 50 remotely sensible ones, this guaranteed full evaluation and
+consideration of alternatives to the played move and/or the preferred move. Each set
+had at least 5,000 moves that were not subject to the 3-pawn cutoff or discarding for
+“repetitions,” while the largest set had just over 25,000 moves, so the relative sizes
+were reasonably consistent. In each case we ran all available games meeting the de-
+scription, from two major commercial game collections marketed by ChessBase Gmbh.
+and OpeningMaster.com, so as to avoid any bias in selection.
+For 1976–1979 it was possible to ﬁnd relaible and large-enough game sets only
+for the 2300 through 2600 mileposts, while 1991–1994 made it possible to add 2700
+and 2200. Since the World Chess Federation has expanded its FIDE rating system
+to players below 2200 in recent years, for 2006–2009 it was possible to ﬁnd enough
+games down to 1600. The ranges around mileposts were expanded from ±10 to ±15
+or ±20 for some of the lower sets.
+For each non-discarded move of each game, evaluation and spread data was pro-
+cessed from the Arena analysis logs into the following format:
+Move played: 12.Ng5
+Engine move: 12.e5
+Eval end-13: +0.63
+Delta = (0.00,0.04,*0.12,0.12,0.39,...)
+Move played: 12...h6
+Engine move: 12...h6
+Eval end-13: +0.56
+Delta = (*0.00,1.05,1.06,1.20,1.85,...)
+Move played: 13.Nxf7+
+Engine move: 13.Nh3
+Eval end-13: +0.57
+Delta = (0.00,0.10,2.40,2.42,2.46)*
+Move played: 13...Rxf7
+Engine move: 13...Rxf7
+Eval end-13: -2.20
+Delta = (*0.00,9.30,9.42,---,---,---,..)
+In this hypothetical example, the White move 13.Nxf7+ (giving check) might be
+classed as a “blunder,” and the * after the closing ) signiﬁes that it wasn’t among the
+top ten moves. At the next move the --- marks indicated that Black had only 3 legal
+replies; one could pad “Delta” with a large value such as 5.00 or 10.00 instead. Since
+Black’s 13. . . Rxf7 capturing the Knight is a forced move (else Black loses Queen for
+Knight as hinted by δ2 = 9.30 and δ3 = 9.42 for the two other legal moves), it has a
+near-total share, and the turn itself has entropy near zero, a non-critical move. Since
+the evaluation after 13. . . Rxf7 shows an imbalance above 2.00, this last datum might
+be discarded anyway.
+7
+
+--- PAGE 9 ---
+6 Fitting Methodology
+If all spread tuples were the same ∆ = (0 ,δ2,...,δ N), or if we had a large-enough
+set of nearly-equal tuples to form a histogram, ﬁtting the results to a curve would
+be relatively simple. Let f1,f2,...,f N,fN+1 be the observed frequencies of which
+indexed move in the spread was played, with fN+1 standing for “move played not in
+the top N” and hopefully negligibly small. Then given a curve gs,c(δ) and distance
+measure µ, such as µ(x,y) = |x−y|2 for least-squares, we could compute the ﬁt score
+Sq,c =
+µ(f1,1/S) + µ(f2,gs,c(δ2)/S) + ··· + µ(fN,gs,c(δN)/S),
+where S = 1 + gs,c(δ2) + ··· + gs,c(δN). In the case of equal spreads this yields the
+same best-ﬁt s,c as maximum-likelihood estimation.
+With heterogeneous spreads, however, the estimation is trickier. Maximum-
+likelihood estimation can still be applied to obtain the best s,c,... for a given curve or
+hybrid g, but this alone does not judge whether ghas the right “shape” across a range
+of δ.
+To this end we devised a “percentiling” method. Given a curve gs,c(δ), let q ad-
+ditionally stand for a percentile. For each point (q,s,c ) in a ﬁne-enough grid, say
+stepping qby 0.05 from 0 to 1, sby 0.02 from 0 to 0.70, and cby 0.20 from 1 to 5, we
+iterate through each spread tuple ∆t = (0,δ2,...,δ N). For each i, 1 ≤i≤N, com-
+pute the probabilities pi = gs,c(δi)/St, where St = ∑
+igs,c(δi). Let it be the index of
+the played move. Deﬁne p− = ∑it−1
+j=1 pj and p+ = p− + pit , giving the endpoints of
+the predicted probability interval of the played move. Then:
+• If p+ ≤q, call the tuple “up.”
+• If p− ≥q, call the tuple “down.”
+• If p− < q < p+, so that the prediction for the played move straddles the q-th
+percentile, count the tuple as being |q−p−|/pit up, and |q−p+|/pit down.
+Finally deﬁne Rq
+s,c to be the percentage of “up” tuples. Given a distance measure µas
+above, the score now becomes
+Ss,c =
+∑
+q
+µ(Rq
+s,c,q).
+A low score indicates a good ﬁt across a range of percentiles for the curve gs,c(δ).
+Note that for a spread ∆ with one clearly-indicated best move, say with δ2 = 1.50,
+the predicted range for most s,c will span beyond the 90th percentile. Suppose the
+best move is played, as predicted. For q = 0.30, say, the tuple will count as (roughly)
+one-third up, two-thirds down. It may seem counter-intuitive for a result that conﬁrms
+a prediction to give an overall “down” score, but the prediction that is actually tested
+by our method is not the individual move but the overall frequency of hits above/below
+a given percentile. Nor is it necessary to estimate the proportion of the cumulative
+distribution of gs,c(δ) to the left and right of 0.30 in the spanned range—the straight
+one-third/two-thirds division is correct. In effect we have converted from the “δscale”
+to the percentile scale, with the effect that instead of plotting data points for a horizontal
+δ-axis and ﬁtting gs,c(δ), we ﬁt the derived percentile curve(s) instead.
+8
+
+--- PAGE 10 ---
+7 Results
+A two-parameter model such as ours is trickier to ﬁt, especially when the parameters
+trade strongly off against each other. A statistical analyzing program written in C++
+carried out the two-dimensional minimization needed to implement the above ﬁtting
+method. It was found that while svaried from 0.07 to 0.16 and beyond, the cvalue
+stayed between 0.430 and 0.545. Accordingly we did a simple linear ﬁt of the cvalues
+for 2006–2009, getting intervals coincidentally highly close to 0.007, and then used
+these to compute “normalized” ﬁtteds-values for each rating milepost. The results, the
+predicted and actual move-match and average-difference statistics, and a measure of
+the quality of the ﬁt, are shown in the following table.
+2006–2009
+Elo s c cfit sfit mmp/mma adp/ada Qfit
+2700 .078 .503 .513 .080 56.2/56.3 .056/.056 .009
+2600 .092 .523 .506 .089 55.0/54.2 .063/.064 .041
+2500 .092 .491 .499 .093 53.7/53.1 .067/.071 .028
+2400 .098 .483 .492 .100 52.3/51.8 .072/.074 .016
+2300 .108 .475 .485 .111 51.1/50.3 .084/.088 .044
+2200 .123 .490 .478 .120 49.4/48.3 .089/.092 .084
+2100 .134 .486 .471 .130 48.2/47.7 .099/.102 .034
+2000 .139 .454 .464 .143 46.9/46.1 .110/.115 .065
+1900 .159 .474 .457 .153 46.5/45.0 .119/.125 .166
+1800 .146 .442 .450 .149 46.4/45.4 .117/.122 .084
+1700 .153 .439 .443 .155 45.5/44.5 .123/.131 .065
+1600 .165 .431 .436 .168 44.0/42.9 .133/.137 .129
+1991–1994
+2700 .079 .487 .513 .084 55.2/54.9 .058/.060 .043
+2600 .092 .533 .506 .087 55.3/54.6 .064/.063 .042
+2500 .098 .500 .499 .092 54.3/53.8 .068/.069 .013
+2400 .101 .484 .492 .103 52.3/51.9 .077/.079 .016
+2300 .116 .480 .485 .117 51.0/50.3 .088/.091 .031
+2200 .122 .477 .478 .122 49.7/48.7 .092/.098 .058
+1976–1979
+2600 .094 .543 .506 .087 53.8/53.0 .062/.061 .038
+2500 .094 .512 .499 .091 53.2/52.5 .067/.068 .032
+2400 .099 .479 .492 .103 52.3/51.7 .076/.079 .020
+2300 .121 .502 .485 .116 50.9/50.0 .088/.090 .070
+9
