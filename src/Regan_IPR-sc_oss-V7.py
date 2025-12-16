@@ -8,7 +8,7 @@ This implementation follows Regan's methodology:
  This should take input from a PGN file
   with narrow range of Elo ratings for all players!
 
-Regan IPR Parameter Fitter (s, c) V1.0
+Regan IPR Parameter Fitter (s, c) V7.1
 =========================================
 
 Purpose:
@@ -17,7 +17,7 @@ Purpose:
 3. Perform Maximum Likelihood Estimation (MLE) to fit the player parameters (s, c).
 4. Extract Elo, First Year, and Last Year played.
 5. APPEND results to a specified cumulative CSV file.
-6. Does NOT calculate Average Error (AE) or final IPR.
+6. Does calculate Average Error (AE).
 
 Usage:
     python regan_fit_sc.py <pgn_file> --output-csv results.csv
