@@ -275,12 +275,17 @@ def main():
     parser.add_argument("pgn_file", type=Path, help="Input PGN")
     parser.add_argument("--engine", type=Path, default=get_default_engine_path(), help="Stockfish path")
     parser.add_argument("--output-csv", type=Path, required=True, help="Cumulative CSV file to append results to (e.g., results.csv)")
+    parser.add_argument("--output-csv", type=Path, help="Cumulative CSV file to append results to. If not specified, defaults to '<pgn_file>_results.csv'")
     parser.add_argument("--depth", type=int, default=14, help="Analysis depth (default: 14)")
     parser.add_argument("--cores", type=int, help="Force CPU cores (default: 80% of available)")
     parser.add_argument("--chunk-size", type=int, default=CHUNK_SIZE, help="Games per processing chunk")
     parser.add_argument("--multipv", type=int, default=MULTI_PV, help="Number of principal variations (MultiPV), default: 5")
 
     args = parser.parse_args()
+
+    if not args.output_csv:
+        args.output_csv = args.pgn_file.with_name(f"{args.pgn_file.stem}_results.csv")
+        print(f"Info: Output CSV not specified. Defaulting to {args.output_csv}")
 
     if not args.pgn_file.exists():
         print(f"Error: PGN file not found at {args.pgn_file}")

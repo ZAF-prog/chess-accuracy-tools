@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import sys
 import argparse
 from pathlib import Path
@@ -17,7 +18,8 @@ def try_pypdf2(path):
                 content = page.extract_text()
                 text.append(f"\n--- PAGE {i+1} ---\n{content}")
             
-            output_file = Path(r"C:\Users\Public\Github\chess-accuracy-tools\extracted_text.txt")
+            input_path = Path(path)
+            output_file = input_path.with_name(f"{input_path.stem}_PDF2.txt")
             with open(output_file, "w", encoding="utf-8") as out:
                 out.write("\n".join(text))
             return f"Wrote to {output_file}"
@@ -38,7 +40,8 @@ def try_pypdf2(path):
                     # print(content)
                     text.append(f"\n--- PAGE {i+1} ---\n{content}")
                 
-                output_file = Path(r"C:\Users\Public\Github\chess-accuracy-tools\extracted_text.txt")
+                input_path = Path(path)
+                output_file = input_path.with_name(f"{input_path.stem}_PDF2.txt")
                 with open(output_file, "w", encoding="utf-8") as out:
                     out.write("\n".join(text))
                 return f"Wrote to {output_file}"
@@ -63,7 +66,8 @@ def try_pdfplumber(path):
                 # print(content)
                 text.append(f"\n--- PAGE {i+1} ---\n{content}")
             
-            output_file = Path(r"C:\Users\Public\Github\chess-accuracy-tools\extracted_text.txt")
+            input_path = Path(path)
+            output_file = input_path.with_name(f"{input_path.stem}_PDF2.txt")
             with open(output_file, "w", encoding="utf-8") as out:
                 out.write("\n".join(text))
             print(f"Wrote to {output_file} using pdfplumber")
