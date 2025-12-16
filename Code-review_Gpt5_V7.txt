@@ -1,0 +1,1526 @@
+--- PAGE 2 ---
+Intrinsic Chess Ratings
+Kenneth W. Regan
+University at BuffaloGuy McC. Haworth
+University of Reading, UK
+February 12, 2011
+Abstract
+This paper develops and tests formulas for representing playing strength at
+chess by the quality of moves played, rather than the results of games. Intrinsic
+quality is estimated via evaluations given by computer chess programs run to high
+depth, ideally whose playing strength is sufﬁciently far ahead of the best human
+players as to be a “relatively omniscient” guide. Several formulas, each having
+intrinsic skill parameters sfor “sensitivity” and cfor “competence,” are argued
+theoretically and tested by regression on large sets of tournament games played by
+humans of varying strength as measured by the internationally standard Elo rating
+system. This establishes a correspondence between Elo rating and the parame-
+ters. A smooth correspondence is shown between statistical results and the century
+points on the Elo scale, and ratings are shown to have stayed quite constant over
+time (i.e., little or no “inﬂation”). By modeling human players of various strengths,
+the model also enables distributional prediction to detect cheating by getting com-
+puter advice during games. The theory and empirical results are in principle trans-
+ferable to other rational-choice settings in which the alternatives have well-deﬁned
+utilities, but bounded information and complexity constrain the perception of the
+utilitiy values.
+1 Introduction
+Player strength ratings in chess and other games of strategy are based on the results
+of games, and are subject to both luck when opponents blunder and drift in the player
+pool. This paper aims to rate players intrinsically by the quality of their decisions, as
+refereed by computer programs run to sufﬁcient depth. We aim to settle controversial
+questions of import to chess policy and enjoyment, and then extend the answers to
+other decision-making activities:
+1. Has there been “inﬂation”—or deﬂation—in the chess Elo rating system over the
+past forty years?
+2. Does a faster time control markedly reduce the quality of play?
+Dept. of CSE, 201 Bell Hall, University at Buffalo Buffalo, NY 14260-2000; (716) 645-3180 x114, fax
+645-3464; regan@buffalo.edu
+1
+
+--- PAGE 3 ---
+3. Was Old Master Xstronger than modern master Y?
+4. Can game scores from tournaments where high results by a player are suspected
+to result from fraud reveal the extent to which “luck”—or collusion—played a
+role?
+5. Can we objectively support assertions of the kind: this player is only an average
+master in the openings and middlegames, but plays at super-grandmaster strength
+in endgames?
+The most-cited predecessor study, [Guid and Bratko2006], aimed only to compare
+the chess world champions, used a relatively low depth (12 ply) of a program Crafty
+[Hyatt2011] generally considered below the elite, and most importantly for our pur-
+poses, evaluated only the played move and Crafty’s preferred move, if different. The
+departure point for our work is that to model probabilistic move-choice to needed ac-
+curacy and assess skill at chess, it is necessary to evaluate all of the relevant available
+moves. At a game turn with `-many legal moves, we can list them m0;m1;:::;m` 1
+in nonincreasing order of their (composite) evaluations e(m0);e(m1);:::;e (m` 1)
+by a (jury of) computer program(s), and use these as a measure of the moves’ utilities.
+(When the convention of stating scores always from White’s point of view is used, for
+Black moves the evaluations can be negated.) Our work uses the commercial chess pro-
+gram Rybka 3 [Rajlich and Kaufman], which was rated the best program on the CCRL
+rating list [CCR2010] between its release in August 2007 and the release of Rybka 4
+in May 2010.
+Guven the evaluations, for each i,0i<` , deﬁnei=e(m0) e(mi). A vector
+ = (0= 0;1;:::;N 1)
+is called the spread of the topNmoves. Often we cap Nat a number such as 20or50,
+and if`<N , we can pad out to length Nwith values of “ +1” if needed.
+The only game-speciﬁc information used by our methods is the spread, the actual
+move played, and the overall evaluation of the position . This minimal information
+is common to other games of strategy, and our work aspires to handle any decision-
+making application with bounded rationality in which utilities (taken already to include
+risk/reward tradeoffs) must be converted into probabilities .
+2 Background and Previous Literature
+The Elo rating system (see [Elo2011]) computes an expected score Ebased on the
+differencesrP rObetween the rating of a player Pand the ratings of various op-
+ponentsO, and adjusts rPaccording to the difference between the actual score and
+E. Although different particular formulas for Eand (especially) the change to rP
+are used by the World Chess Federation (FIDE) and various national federations, they
+are generally set up so that rP rO= 200 means thatPmust score approximately
+75% in games versus Oin order to avoid losing rating points. (Under the logistic-
+curve model used by the United States Chess Federation, USCF, this is close to 76%.)
+2
+
+--- PAGE 4 ---
+Since only rating differences matter there is no absolute meaning to the numbers pro-
+duced, but considerable effort has been expended by FIDE and national federations
+to maintain the strength levels indicated by particular numbers stable over time. For
+four decades all World Champions and their closest contenders have held ratings in
+the neighborhood of 2800, while 2650 is the most commonly cited threshold for the
+unofﬁcial “super-grandmaster” status, 2500 is typical of Grandmasters, 2400 of Inter-
+national Masters, 2300 of FIDE Masters (indeed, awardees of the the last three titles
+must have current ratings above those ﬂoors), while 2200 is often designated “master”
+by national federations. The USCF then uses 2000 as the threshold for “Expert,” 1800
+for “Class A,” ofﬁcially down to 1000 for “Class E” which has also been referred to as
+the strength of “bright beginners.” Hence we refer to 200 points as a “class unit.”
+By ﬁtting to these itemized skill levels, our paper continues work on reference
+fallible agents in the game context [Reibman and Ballard1983, Korf1987, Korf1988,
+Haworth2003, Haworth and Andrist2004, Andrist and Haworth2005]. The aim going
+beyond these papers, and beyond the results reported in this preliminary work, is to
+ﬁt probabilities and conﬁdence intervals for move section by thus-calibrated agents.
+The present work establishes that a reference-fallible model is supported by data
+taken on a far larger scale than previous studies, and using a more-ramiﬁed model
+than [DiFatta, Haworth, and Regan2009, DiFatta, Haworth, and Regan2010] which are
+based on Bayesian inference.
+3 Basic Model
+Our key abstract concept is the probability pi=pi(s;c;::: )of a playerPof skill level
+corresponding to parameters s;c;::: choosing move miat a given turn t. We wish
+to ﬁtpias a function of the spread tfor that turn. We make three basic modeling
+assumptions:
+(a) A player’s choices at different game turns are independent, even for successive
+game turns.
+(b) There is a relation between the probability piof selecting the i-th move and the
+probabilityp0of choosing an optimal move that depends simply and mainly on
+the valueialone.
+(c) For players at all skill levels, the relation has the form r(pi;p0) =g(i), where
+ris a ratio,gis acontinuous, decreasing function ofi, andgdepends only on
+the parameters s;c;::: for the skill level.
+Assumption (3) is de rigeur for the whole enterprise of regarding pias a function
+of information for the given turn talone. It also enables us to multiply probabilities
+from different turns, and add probabilities to project (for instance) the total number of
+matches to a computer’s ﬁrst choices over a sequence of moves. We justify it further
+below.
+Note that (3) does not assert that pidepends onialone. The quality of alternative
+moves must factor into the probability of selecting move misomehow. Our assump-
+tion (3) asserts what seems to be the simplest and weakest dependence on alternatives,
+3
+
+--- PAGE 5 ---
+however, saying all their effect is bundled into p0. We assert no other dependence on
+jforj6=i. In (3) we allow a smaller dependence on the overall evaluation e, but only
+to down-weight or ﬁlter out cases where eis extreme—i.e. for poor moves or when one
+side is clearly winning—as detailed in Section 5.
+The function ris said to deﬁne the model , and the functions g=gs;c;::()are curves
+used to ﬁt the model. The models and curves are normalized so that g(0) =g(0) = 1 .
+Plausible models include:
+1.“Shares”:rispi=p0, sopi=p0g(i).
+2.“Powers”:rislog(1=p0)=log(1=pi), sopi=p1=g(i)
+0 .
+3.r(pi;p0) =pilog(1=p0)
+p0log(1=pi)=g(i).
+Another way of describing Model (1) is that the curve value si=gs;c;::(i)is
+the “share” of move mi, and its probability piis the ratio of sito the sum of the
+shares,S=P` 1
+i=0si. Hence the name “Shares.” In Model (2), the curve represents an
+“exponential decay” of probability in going from an optimal move to an inferior one.
+Justiﬁcation of the Assumptions
+Assumption (3) is intuitively false when a sequence of move choices constitutes a single
+plan. For example, if White plays 20.Nh1-g3 and the best square for the Knight is d4,
+then White is humanly likely to follow with 21.Ng3-e2 and 22.Ne2-d4. However, this
+is one of several places where our modeling requires only that assumptions be “usually
+approximately true,” and where the degree of compliance is ascertainable from the data.
+Assumption (3) tacitly assumes that ritself is monotone in pi, so that holding p0
+constant, the probabilities pi(s;c;::: )are also decreasing functions of i, for all ﬁxed
+skill levels. How reasonable is this? It is easy to devise positions with an attractive but
+inferior move that most human players would choose, where the best move may—or
+may not—be found by our computer jury at the reference depth, thus falsifying (3) for
+that position. However, the “Shares” model extends naturally to assert
+pi=p0X
+dwdg(d;i);
+and the others can be extended similarly. Then weaker players can be recognized as
+those with higher values of wdfor lowerd, and their ﬁtted ensembles of curves may be
+non-monotone for ﬁxed higher values of d. Although we do not ﬁt such wdparameters
+in this work, and use evaluations only at the given ﬁxed depth 13 ply of Rybka 3, there
+is reason to believe from our results that we have gotten a representative “slice” of this
+spectrum for a fairly wide variety of players. Thus we have two defenses to objections
+on (3) that stay within our basic modeling assumptions, and we can use goodness-of-ﬁt
+data to justify both it and (3).
+A third kind of objection is that important chess-speciﬁc information has been left
+out, such as received evaluations of chess openings (especially gambits whose com-
+pensation is not recognized quickly enough by engines), player styles, tournament sit-
+uations, time-pressure during speciﬁc games, and more. To this we answer that the
+4
+
+--- PAGE 6 ---
+very force of our model is its chess-neutrality , and that a statistical yardstick can be
+objective only when it does not adapt to any player style or situation internally. The
+most we allow are ideas of putting external weights on the signiﬁcance of the models’
+results according to situation, such as weighting games at rapid time controls less.
+To justify this answer, and turn away objections similar to those leveled at the Guid-
+Bratko study, we need internal means of measuring the effectiveness of our simple
+model, and a good positive result from such measurements. First we describe the kinds
+of curves to ﬁt.
+4 Possible Move-Choice Formulas
+We regard the two parameters already called “ s” and “c” above as organic, with a com-
+mon meaning across models and curves. The sparameter represents a conversion from
+the hundredths-of-a-pawn units of iinto the dimensionless quantity i=sused in all of
+our curves. The smaller s, the greater the ratio when iis moderate, thus lowering the
+projected probability of the i-th move. Hence sgoverns a player’s ability to discrimi-
+nate moderately inferior moves, so we call it the sensitivity . We use the symbol s, and
+divide rather than multiply, because it equals or scales with the standard deviation of
+several of the curves when the curves themselves are viewed as distributions.
+The parameter cappears as an exponent of =s, directly or with some intervening
+terms. Intuitively it governs how often a player avoids moves in the range the player
+discriminates as inferior, and avoids poor moves overall. Hence we regard it as a notion
+ofcompetence .
+Additional parameters to ﬁt may come from ﬁtting linear combinations of curves,
+and will come as weights over ply-depths in the full model with “swing.” However we
+regardsandc, together with the model and curve family, as determining the shape of
+skill at chess. Salient families of curves g, all normalized to make g(0) = 1 , that we
+have considered are:
+Inverse-exponential curves:
+invexp () =e (=s)c:
+Inverse-polynomial curves:
+ipa() =1
+1 + (=s)c; or
+ipb() =1
+(1 +=s)c:
+Logistic function-related curves:
+secha () =2
+(e(=s)c+e (=s)c)or
+sechb () =4
+(e(=s)c+ 2 +e (=s)c):
+5
+
+--- PAGE 7 ---
+All of these curves were found to give similar results, largely owing to the way they
+approximate each other near the origin. We standardized our results on the inverse-
+exponential family.
+5 Data Methodology and Experiments
+Two large sets of data were taken, the former acting as a control for the latter. The for-
+mer comprises approximately 150,000 games of chess, including every match for the
+world championship, every qualifying match for the championship, the top round-robin
+tournaments from London 1851 onward, large selections from the Chess Olympiads,
+every USSR/Russia and USA Championship, and a host of other kinds of chess compe-
+tition including rapid, blitz, correspondence, and computer play. These were scripted
+by running Rybka 3 in so-called Single-PV mode, whereby it computes a full evalu-
+ation only for the preferred move, to reported depth 13-ply in the Arena chess GUI
+[Blume2010], which logs the evaluation of each move and other information automat-
+ically to a text ﬁle.
+These runs re-created a somewhat simpler form of the Guid-Bratko experiment
+[Guid and Bratko2006]. Similar to there, each game was begun on move 9 since earlier
+moves are often repeated and are considered part of common opening theory. Moves
+where one side was already established as being more than 3 pawns ahead according
+to Rybka 3 were discarded; [Guid and Bratko2006] used a similar 2-pawn cutoff for
+Crafty run to 12 ply, but 3 pawns was felt better for Rybka 3 owing to its deeper
+search. The percentage of moves on which the player and Rybka 3 agreed, called
+the move-match percentage (mm), were tallied for each player in each event. The
+difference in evaluation in cases where the player chose a sub-optimal move according
+to Rybka 3, summed and averaged over all moves, comprised our version of the Guid-
+Bratko “Average Difference” (ad) statistic.
+When the average difference was plotted against the overall evaluation eof a given
+position for the player to move, it was found that the former scaled markedly up with
+jej. The effect was so pronounced that in many kinds of chess events, the same players
+when judged ahead by only 0.5 pawns showed a 60-70% higher average-difference
+than when the position was judged very close to dead-even. Since it seemed strange
+to infer that players in such cases were performing 60–70% worse, it was decided to
+institute a scale correction. This was done by integrating a line differential `(x). Thus
+ife= +0:50for a White move turn, but the move miplayed was judged a 1:25pawn
+error, the(mi)value was recorded as the integral of `(x)from 0:75to+0:50. It
+was found that a simple proportional scale correction equalized the global ad statistics
+in relation to efairly well.
+The main data set comprised games in which both players were within 10 Elo rating
+points of one of the “milepost” values: 2700, 2600, 2500, . . . , run under standard time
+controls in individual-player round-robin or small-Swiss tournaments. Team events
+and large-Swiss (meaning more than six times as many players as rounds) tournaments
+were excluded. Games were taken from three time periods: 2006–2009, 1991–1994,
+and 1976–1979. These games were evaluated to depth 13 ply in 50-PV mode; since
+most positions have fewer than 50 legal moves, and all but a trace with more legal
+6
+
+--- PAGE 8 ---
+moves have fewer than 50 remotely sensible ones, this guaranteed full evaluation and
+consideration of alternatives to the played move and/or the preferred move. Each set
+had at least 5,000 moves that were not subject to the 3-pawn cutoff or discarding for
+“repetitions,” while the largest set had just over 25,000 moves, so the relative sizes
+were reasonably consistent. In each case we ran allavailable games meeting the de-
+scription, from two major commercial game collections marketed by ChessBase Gmbh.
+and OpeningMaster.com, so as to avoid any bias in selection.
+For 1976–1979 it was possible to ﬁnd relaible and large-enough game sets only
+for the 2300 through 2600 mileposts, while 1991–1994 made it possible to add 2700
+and 2200. Since the World Chess Federation has expanded its FIDE rating system
+to players below 2200 in recent years, for 2006–2009 it was possible to ﬁnd enough
+games down to 1600. The ranges around mileposts were expanded from 10to15
+or20for some of the lower sets.
+For each non-discarded move of each game, evaluation and spread data was pro-
+cessed from the Arena analysis logs into the following format:
+Move played: 12.Ng5
+Engine move: 12.e5
+Eval end-13: +0.63
+Delta = (0.00,0.04, *0.12,0.12,0.39,...)
+Move played: 12...h6
+Engine move: 12...h6
+Eval end-13: +0.56
+Delta = ( *0.00,1.05,1.06,1.20,1.85,...)
+Move played: 13.Nxf7+
+Engine move: 13.Nh3
+Eval end-13: +0.57
+Delta = (0.00,0.10,2.40,2.42,2.46) *
+Move played: 13...Rxf7
+Engine move: 13...Rxf7
+Eval end-13: -2.20
+Delta = ( *0.00,9.30,9.42,---,---,---,..)
+In this hypothetical example, the White move 13.Nxf7+ (giving check) might be
+classed as a “blunder,” and the *after the closing )signiﬁes that it wasn’t among the
+top ten moves. At the next move the --- marks indicated that Black had only 3 legal
+replies; one could pad “Delta” with a large value such as 5.00 or 10.00 instead. Since
+Black’s 13. . . Rxf7 capturing the Knight is a forced move (else Black loses Queen for
+Knight as hinted by 2= 9:30and3= 9:42for the two other legal moves), it has a
+near-total share, and the turn itself has entropy near zero, a non-critical move. Since
+the evaluation after 13. . . Rxf7 shows an imbalance above 2.00, this last datum might
+be discarded anyway.
+7
+
+--- PAGE 9 ---
+6 Fitting Methodology
+If all spread tuples were the same  = (0;2;:::;N), or if we had a large-enough
+set of nearly-equal tuples to form a histogram, ﬁtting the results to a curve would
+be relatively simple. Let f1;f2;:::;fN;fN+1be the observed frequencies of which
+indexed move in the spread was played, with fN+1standing for “move played not in
+the topN” and hopefully negligibly small. Then given a curve gs;c()and distance
+measure, such as(x;y) =jx yj2for least-squares, we could compute the ﬁt score
+Sq;c=
+(f1;1=S) +(f2;gs;c(2)=S) ++(fN;gs;c(N)=S);
+whereS= 1 +gs;c(2) ++gs;c(N). In the case of equal spreads this yields the
+same best-ﬁt s;cas maximum-likelihood estimation.
+With heterogeneous spreads, however, the estimation is trickier. Maximum-
+likelihood estimation can still be applied to obtain the best s;c;::: for a given curve or
+hybridg, but this alone does not judge whether ghas the right “shape” across a range
+of.
+To this end we devised a “percentiling” method. Given a curve gs;c(), letqad-
+ditionally stand for a percentile. For each point (q;s;c )in a ﬁne-enough grid, say
+steppingqby0:05from 0to1,sby0:02from 0to0:70, andcby0:20from 1to5, we
+iterate through each spread tuple t= (0;2;:::;N). For eachi,1iN, com-
+pute the probabilities pi=gs;c(i)=St, whereSt=P
+igs;c(i). Letitbe the index of
+the played move. Deﬁne p =Pit 1
+j=1pjandp+=p +pit, giving the endpoints of
+the predicted probability interval of the played move. Then:
+Ifp+q, call the tuple “up.”
+Ifp q, call the tuple “down.”
+Ifp < q < p+, so that the prediction for the played move straddles the q-th
+percentile, count the tuple as being jq p j=pitup, andjq p+j=pitdown.
+Finally deﬁne Rq
+s;cto be the percentage of “up” tuples. Given a distance measure as
+above, the score now becomes
+Ss;c=X
+q(Rq
+s;c;q):
+A low score indicates a good ﬁt across a range of percentiles for the curve gs;c().
+Note that for a spread with one clearly-indicated best move, say with 2= 1:50,
+the predicted range for most s;cwill span beyond the 90th percentile. Suppose the
+best move is played, as predicted. For q= 0:30, say, the tuple will count as (roughly)
+one-third up, two-thirds down. It may seem counter-intuitive for a result that conﬁrms
+a prediction to give an overall “down” score, but the prediction that is actually tested
+by our method is not the individual move but the overall frequency of hits above/below
+a given percentile. Nor is it necessary to estimate the proportion of the cumulative
+distribution of gs;c()to the left and right of 0:30in the spanned range—the straight
+one-third/two-thirds division is correct. In effect we have converted from the “ scale”
+to the percentile scale, with the effect that instead of plotting data points for a horizontal
+-axis and ﬁtting gs;c(), we ﬁt the derived percentile curve(s) instead.
+8
+
+--- PAGE 10 ---
+7 Results
+A two-parameter model such as ours is trickier to ﬁt, especially when the parameters
+trade strongly off against each other. A statistical analyzing program written in C++
+carried out the two-dimensional minimization needed to implement the above ﬁtting
+method. It was found that while svaried from 0:07to0:16and beyond, the cvalue
+stayed between 0:430and0:545. Accordingly we did a simple linear ﬁt of the cvalues
+for 2006–2009, getting intervals coincidentally highly close to 0:007, and then used
+these to compute “normalized” ﬁtted s-values for each rating milepost. The results, the
+predicted and actual move-match and average-difference statistics, and a measure of
+the quality of the ﬁt, are shown in the following table.
+2006–2009
+Elosccfitsfitmmp/mmaadp/adaQfit
+2700 .078 .503 .513 .080 56.2/56.3 .056/.056 .009
+2600 .092 .523 .506 .089 55.0/54.2 .063/.064 .041
+2500 .092 .491 .499 .093 53.7/53.1 .067/.071 .028
+2400 .098 .483 .492 .100 52.3/51.8 .072/.074 .016
+2300 .108 .475 .485 .111 51.1/50.3 .084/.088 .044
+2200 .123 .490 .478 .120 49.4/48.3 .089/.092 .084
+2100 .134 .486 .471 .130 48.2/47.7 .099/.102 .034
+2000 .139 .454 .464 .143 46.9/46.1 .110/.115 .065
+1900 .159 .474 .457 .153 46.5/45.0 .119/.125 .166
+1800 .146 .442 .450 .149 46.4/45.4 .117/.122 .084
+1700 .153 .439 .443 .155 45.5/44.5 .123/.131 .065
+1600 .165 .431 .436 .168 44.0/42.9 .133/.137 .129
+1991–1994
+2700 .079 .487 .513 .084 55.2/54.9 .058/.060 .043
+2600 .092 .533 .506 .087 55.3/54.6 .064/.063 .042
+2500 .098 .500 .499 .092 54.3/53.8 .068/.069 .013
+2400 .101 .484 .492 .103 52.3/51.9 .077/.079 .016
+2300 .116 .480 .485 .117 51.0/50.3 .088/.091 .031
+2200 .122 .477 .478 .122 49.7/48.7 .092/.098 .058
+1976–1979
+2600 .094 .543 .506 .087 53.8/53.0 .062/.061 .038
+2500 .094 .512 .499 .091 53.2/52.5 .067/.068 .032
+2400 .099 .479 .492 .103 52.3/51.7 .076/.079 .020
+2300 .121 .502 .485 .116 50.9/50.0 .088/.090 .070
+9
+
+	:
+
+1. Engine evaluation model
+--------------------------
+For each position (turn) t:
+
+1. Let the chess engine (Rybka 3 in the paper) evaluate all (or up to N) legal moves from the position.
+   * Let the legal moves be m₀, m₁, …, m_{ℓ−1}.
+   * Order them by engine score in **non‑increasing** order from the side to move’s perspective:
+     e(m₀) ≥ e(m₁) ≥ … ≥ e(m_{ℓ−1}).
+   * m₀ is the engine’s best move at that depth.
+
+2. Define the **spread vector** for this turn t as:
+
+   - Δᵢ = e(m₀) − e(mᵢ), for i = 0,…,ℓ−1
+   - Note: Δ₀ = 0 by definition.
+   - We truncate/pad to a fixed N (e.g., 20 or 50):
+     * If ℓ ≥ N, use the top N moves.
+     * If ℓ < N, pad Δᵢ for i ≥ ℓ with a large value (conceptually “+∞”, practically some big pawn value, e.g. 5 or 10) so that these moves have negligible probability.
+
+3. The **only chess‑specific inputs** to the probabilistic model for a position are:
+   * the spread Δ = (0, Δ₁,…,Δ_{N−1}),
+   * which move was actually played (its index in this ordering, or “not in top N”),
+   * the engine’s overall evaluation of the position e (only used for filtering / down‑weighting extreme positions, e.g. where |e| > 2 or 3 pawns).
+
+This is deliberately game‑neutral: the model depends on utilities (engine scores) but not on any further chess semantics.
+
+2. Skill parameters
+-------------------
+Each skill level / player class is characterized by two parameters:
+
+* **s** – sensitivity
+  * Units: same as engine score (pawns) after scaling, but used as a divisor.
+  * Interpretation: how finely the player discriminates between small evaluation differences.
+  * Smaller s ⇒ a given Δᵢ/s is larger ⇒ more sharply reduced probability for inferior moves ⇒ more sensitive to even moderate evaluation deficits.
+
+* **c** – competence
+  * Appears as an exponent on Δ/s in the curve family.
+  * Interpretation: how strongly the player avoids moves in the range they can discriminate as inferior and avoids large blunders in general.
+
+Roughly: s controls “where” the player starts to care about evaluation differences; c controls “how strongly” they care once they can see the difference.
+
+3. Core behavioral assumption
+-----------------------------
+Fix a position t and its spread Δᵢ.
+
+Let pᵢ = probability that the player (of type (s,c,…)) chooses move mᵢ at that turn.
+Let p₀ = probability of choosing the engine’s top move m₀ (Δ₀ = 0).
+
+The model’s **key assumption**:
+
+- There exists a ratio function r such that
+  
+  r(pᵢ, p₀) = g(Δᵢ),
+  
+  where g is a decreasing, continuous curve depending only on skill parameters (s,c,…).
+
+Important points:
+
+* The dependence on **other moves** is captured only through p₀ and normalization, not via Δⱼ for j≠i.
+* The player’s move choice at different turns is modeled as **independent** given their skill parameters and the spreads.
+* g(0) = 1, so r(p₀,p₀) = 1 is consistent.
+
+The probability pᵢ does not depend on Δᵢ alone; the full spread and normalization matter. But the **ratio** between pᵢ and p₀ only depends on Δᵢ.
+
+4. Candidate functional forms
+-----------------------------
+The paper defines a few general **ratio models** r and then chooses specific curve families g(Δ).
+
+### 4.1 Ratio models
+
+1. **Shares model**
+
+   * r = pᵢ / p₀
+   * Thus pᵢ = p₀ · g(Δᵢ)
+   * With normalization, this is naturally re‑expressed as:
+
+     - Let sᵢ := g(Δᵢ) be the **share** of move mᵢ.
+     - Let S := Σⱼ sⱼ.
+     - Then pᵢ = sᵢ / S.
+
+   This is the simplest and the one Regan actually uses with the chosen g.
+
+2. **Powers model**
+
+   * r = log(1/p₀) / log(1/pᵢ)
+   * This implies pᵢ = p₀^{1/g(Δᵢ)}.
+
+3. A third, more complicated ratio:
+
+   * r(pᵢ,p₀) = [pᵢ·log(1/p₀)] / [p₀·log(1/pᵢ)] = g(Δᵢ).
+
+The **Shares model** is the core of the practical IPR implementation.
+
+### 4.2 Curve families g(Δ)
+
+All curve families are normalized by g(0) = 1.
+
+Let x = Δ/s. Then candidate g’s include:
+
+1. **Inverse‑exponential** (the one standardized on in the paper):
+
+   * invexp(Δ) = exp(−(Δ / s)^c).
+
+2. **Inverse‑polynomial**:
+
+   * ipa(Δ) = 1 / (1 + (Δ / s)^c).
+   * ipb(Δ) = 1 / (1 + Δ/s)^c.
+
+3. **Logistic‑related (sech‑type)**:
+
+   * secha(Δ) = 2 / (exp((Δ/s)^c) + exp(−(Δ/s)^c)).
+   * sechb(Δ) = 4 / (exp((Δ/s)^c) + 2 + exp(−(Δ/s)^c)).
+
+All of these approximate one another near Δ ≈ 0; empirically, they give similar performance. Regan/Haworth **standardize on the inverse‑exponential family** for the main analysis.
+
+So in the final working form:
+
+- g(Δ; s,c) = exp(−(Δ / s)^c).
+
+5. Move probability for a given position
+---------------------------------------
+Given a position’s spread Δ and a skill parameter pair (s,c):
+
+1. Compute gᵢ = g(Δᵢ; s,c) = exp(−(Δᵢ / s)^c) for i = 0,…,N−1.
+2. Compute normalization S = Σᵢ gᵢ.
+3. Define the probability of move mᵢ:
+
+   pᵢ = gᵢ / S.
+
+Notes:
+
+* If a move is **not in the top N** moves, treat that as a separate category (“outside top N”), usually with negligible probability or approximated by padding with a large Δ.
+* Positions with |e| (the position’s overall evaluation) beyond a threshold (e.g., >2 or >3 pawns) are down‑weighted or discarded, since almost‑decided positions do not provide good information about relative strength.
+
+6. Data selection and preprocessing
+----------------------------------
+The procedure used for collecting data to fit (s,c) to Elo (this is the *calibration* step, not the application step):
+
+1. **Game filtering**
+   * Select games where both players’ Elo ratings are within a small band of target “milepost” values (e.g., 2700, 2600, …, 1600).
+   * Use standard time controls and avoid large open Swisses and team events; focus on round‑robins and small Swiss tournaments.
+   * Time periods: 1976–79, 1991–94, 2006–09.
+
+2. **Engine analysis**
+   * Analyze each game with Rybka 3 to depth 13 ply.
+   * Use **multi‑PV mode** (e.g., 50‑PV) so that all top moves get evaluation scores, not just the engine’s first choice.
+
+3. **Move filtering**
+   * Only process moves starting from move 9, to avoid theory‑heavy openings.
+   * Discard moves/positions where the engine’s evaluation already indicates a large advantage (e.g., ≥ 3 pawns to the side to move), or where there’s forced play / trivial choices.
+
+4. **Scale correction for Δ**
+   * Empirically, the mean evaluation error (average Δ) depends strongly on |e|, the overall position evaluation.
+   * Example: positions where the player’s side is +0.5 may show much larger average Δ than dead‑even positions, even when the same player is playing, which is implausible as “skill difference”.
+   * To correct this, a scale factor function ℓ(x) is introduced and Δ is transformed via integration over e; effectively a proportional scaling is applied so that error statistics are more stable vs e.
+
+The result of this process is a very large dataset where each record is:
+
+- (Δ vector for that position, index of the actual move, possibly a flag if the actual move is outside top N, and the filtered/adjusted e for the position).
+
+7. Fitting (s,c) from data: percentiling method
+-----------------------------------------------
+We now have heterogeneous spreads and observed choices; we want to infer the best (s,c) for a rating cohort.
+
+### 7.1 Direct likelihood (conceptual)
+
+For fixed (s,c):
+
+1. For each position t with spread Δᵢ^t, compute pᵢ^t = g(Δᵢ^t; s,c)/S^t.
+2. The likelihood of the observed choices (assuming independence across t) is:
+
+   L(s,c) = Π_t p_{iₜ}^t,
+
+   where iₜ is the index of the move actually played at t.
+
+Maximizing log L(s,c) is feasible but is not sufficient to check whether g has the right **shape across Δ**. So they supplement this with a **percentiling fit**.
+
+### 7.2 Percentiling procedure
+
+Given a curve family g(Δ; s,c), they define a grid over (q,s,c), where q is a percentile:
+
+- q in [0,1], step 0.05
+- s in [0,0.70], step 0.02
+- c in [1,5], step 0.20
+
+For a fixed (q,s,c):
+
+1. For each spread tuple Δ^t = (0, Δ₂,…,Δ_N) and its actual move index iₜ:
+
+   a. Compute the probability distribution:
+      
+      pᵢ^t = g(Δᵢ^t; s,c) / S^t.
+
+   b. Define cumulative probabilities up to before the played move and up to and including the played move:
+      
+      p⁻ = Σ_{j < iₜ} pⱼ^t
+      p⁺ = p⁻ + p_{iₜ}^t.
+
+   c. Compare q with [p⁻, p⁺]:
+
+      * If p⁺ ≤ q → classify this tuple as **“up”**.
+      * If p⁻ ≥ q → classify this tuple as **“down”**.
+      * If p⁻ < q < p⁺ → split the weight:
+        - up‑weight = |q − p⁻| / p_{iₜ}^t
+        - down‑weight = |p⁺ − q| / p_{iₜ}^t
+
+2. Accumulate the total up‑weight vs total weight over all tuples to get:
+
+   R_q^{s,c} = (weighted proportion of “up” mass),
+
+   which is intended to approximate the actual fraction of moves whose predicted cumulative probability interval lies **below** q.
+
+3. Define a distance measure over percentiles:
+
+   S_{s,c} = Σ_q d(R_q^{s,c}, q),
+
+   where d is typically squared error:
+
+   d(x,y) = (x − y)².
+
+Intuition: If the model with parameters (s,c) is exactly correct, then for each q, the fraction R_q^{s,c} of observed moves whose predicted cumulative probability is below q should be approximately q itself. Thus R_q^{s,c} ≈ q for all q.
+
+The best‑fit (s,c) minimizes S_{s,c}.
+
+8. Final calibration: mapping Elo ↔ (s,c)
+----------------------------------------
+For each rating band (e.g., 2700, 2600, …), time‑period, and dataset:
+
+1. Use the percentiling method (and/or likelihood) to find best‑fit (s,c).
+2. Observations:
+   * c stays in a reasonably tight range (roughly 0.43–0.545 in the reported data)
+   * s varies more, roughly from ≈0.07 to ≥0.16, and correlates with Elo.
+3. They then fit a simple linear model for c as a function of s or Elo, and use a “normalized” s as the primary scale for intrinsic performance rating.
+
+The tables at the end show, for each Elo band and period:
+
+- estimated s,
+- estimated c,
+- “normalized” s (s_fit),
+- predicted vs actual move‑match percentage (mm p/mm a),
+- predicted vs actual average difference (ad p/ad a),
+- and some Qfit measure summarizing goodness of fit.
+
+This produces a smooth mapping Elo ↔ (s,c) and thereby allows you to interpret a player’s estimated (s,c) in Elo terms: that is the **Intrinsic Performance Rating (IPR)**.
+
+9. How to apply the model to a player or event
+---------------------------------------------
+Conceptually, once (s,c)↔Elo calibration is done, using the IPR model on new games is:
+
+1. For each candidate player (or for a given set of their games):
+   * Run a strong engine (analogous to Rybka 3 at depth 13) on each position.
+   * Obtain top N moves and evaluation -> spread Δ.
+   * Filter out positions where |e| is large, where there are forced moves, or early theoretical positions as in the calibration.
+
+2. For each candidate s,c (or for the whole Elo grid):
+   * Compute per‑position probabilities pᵢ^t.
+   * Compute likelihood L(s,c) = Π_t p_{iₜ}^t or log likelihood.
+
+3. Find (s*, c*) maximizing likelihood or minimizing the percentile error S_{s,c}.
+
+4. Convert (s*, c*) to an equivalent Elo rating via the calibration curve.
+
+5. Optional: compare the empirical distribution of move choices (e.g., move‑match %, average Δ, distribution of blunders) with the predicted distribution for that Elo to detect anomalies (e.g., cheating suspicion, unusually strong play in certain phases, etc.).
+
+In summary
+----------
+Regan’s IPR algorithm models the probability of each legal move as a normalized decreasing function of the engine‑evaluated loss Δ from the best move, with two player‑specific parameters (sensitivity s and competence c). Using large, filtered datasets of human games and a strong engine, (s,c) are fitted via a percentile‑based goodness‑of‑fit method and then mapped to Elo. Applied to new games, the same model gives a likelihood‑based intrinsic performance estimate (IPR) in Elo terms, independent of game results.
+
+Step GHG (2025-12-16 08:44) :
+{"vsg_energy_consumption": {"value": 2076.75, "unit": "Wh"}, "vsg_ghg_consumption": {"value": 207.68, "unit": "gCO\u2082eq"}}
+
+	:
+Review the following code - how well did it implement the algo specified above?
+
+#!/usr/bin/env python
+"""
+Dr. Kenneth Regan's Intrinsic Performance Rating (IPR) algorithm
+with Multi-PV analysis using Stockfish (replacing Rybka).
+
+This implementation follows Regan's methodology:
+ Fit skill parameters (s, c) using maximum likelihood on actual moves
+ This should take input from a PGN file
+  with narrow range of Elo ratings for all players!
+
+Regan IPR Parameter Fitter (s, c) V1.0
+=========================================
+
+Purpose:
+1. Analyze PGN games using a persistent Stockfish engine (optimized).
+2. Collect move-by-move data for parameter fitting.
+3. Perform Maximum Likelihood Estimation (MLE) to fit the player parameters (s, c).
+4. Extract Elo, First Year, and Last Year played.
+5. APPEND results to a specified cumulative CSV file.
+6. Does NOT calculate Average Error (AE) or final IPR.
+
+Usage:
+    python regan_fit_sc.py <pgn_file> --output-csv results.csv
+"""
+
+import multiprocessing
+import chess
+import chess.engine
+import chess.pgn
+import numpy as np
+import math
+import csv
+import sys
+import argparse
+import pickle
+import time
+import os
+import platform
+from pathlib import Path
+from collections import defaultdict
+from scipy.optimize import minimize
+from typing import List, Tuple, Dict, Any
+import numpy as np
+try:
+    import psutil
+except ImportError:
+    psutil = None
+import atexit
+
+# --- CONFIGURATION ---
+BOOK_MOVES = 8          # Skip first 8 moves (16 ply)
+CAP_EVAL = 300          # Garbage time filter (centipawns)
+MULTI_PV = 5            # Number of principal variations
+MATE_SCORE = 10000      # Value used to cap mate scores
+CHUNK_SIZE = 50         # Games per chunk
+
+# --- GLOBAL WORKER VARIABLE ---
+worker_engine = None
+
+def get_default_engine_path():
+    """Determines default Stockfish path based on OS."""
+    system = platform.system()
+    if system == "Windows":
+        # Adjust this path to your actual Stockfish location
+        return Path(r"C:\Users\Public\Libraries\stockfish\stockfish-windows-x86-64-avx2.exe")
+    elif system in ("Linux", "Darwin"):
+        return Path("stockfish") # Assumes 'stockfish' is in PATH
+    return Path("stockfish")
+
+def centipawns_to_winprob(cp: float) -> float:
+    """
+    Converts centipawns to win probability using the standard logistic formula.
+    Range: [0.0, 1.0] from perspective of side to move.
+    """
+    try:
+        # Optimization for extreme values to prevent overflow
+        if cp > 20000: return 1.0
+        if cp < -20000: return 0.0
+        return 1.0 / (1.0 + math.pow(10, -cp / 400.0))
+    except (OverflowError, ValueError):
+        return 0.0 if cp < 0 else 1.0
+
+def calculate_move_probabilities(values: List[float], s: float, c: float) -> List[float]:
+    """
+    Calculate move probabilities using Softmax Energy Model on Win Probabilities.
+    Values are input in PAWNS (e.g. 1.50).
+    """
+    if not values: return []
+    
+    # 1. Convert to Centipawns then Win Probability
+    # Note: Input values are in Pawns (e.g. 0.35), so multiply by 100
+    win_probs = [centipawns_to_winprob(v * 100.0) for v in values]
+    
+    # Assumes values are sorted descending by engine (usually true for MultiPV),
+    # but we should just take the max WP as reference to be safe/robust.
+    best_wp = max(win_probs)
+    
+    # 2. Calculate Deltas: difference in Win Probability
+    deltas = [max(0.0, best_wp - wp) for wp in win_probs]
+    
+    # 3. Calculate Weights: exp( - (delta/s)^c )
+    weights = []
+    for d in deltas:
+        if s <= 1e-9: # Protection against div by zero
+            weights.append(1.0 if d == 0 else 0.0)
+            continue
+            
+        try:
+            term = d / s
+            # Optimization: If term is large, weight is effectively 0
+            if term > 1000: 
+                w = 0.0
+            else:
+                exponent = math.pow(term, c)
+                # exp(-700) is underflow threshold
+                if exponent > 700:
+                    w = 0.0
+                else:
+                    w = math.exp(-exponent)
+        except (OverflowError, ValueError):
+            w = 0.0
+        weights.append(w)
+            
+    # 4. Normalize
+    total_w = sum(weights)
+    if total_w == 0:
+        # Fallback if all weights zero (should be rare with safe bounds)
+        return [1.0] + [0.0]*(len(values)-1)
+        
+    return [w / total_w for w in weights]
+
+def create_player_data():
+    """Factory for player data structure (picklable)."""
+    return {
+        'test_set': [],  # [(raw_values, actual_idx), ...] - data for MLE fitting
+        'elos': [],
+        'games': 0,
+        'first_year': float('inf'),
+        'last_year': float('-inf')
+    }
+
+# --- WORKER FUNCTIONS (Parallel Analysis) ---
+
+def init_worker(engine_path: Path, hash_mb: int):
+    """Initializer run once per worker process to start the engine."""
+    global worker_engine
+    try:
+        worker_engine = chess.engine.SimpleEngine.popen_uci(str(engine_path))
+        # Configure Engine: Hash and Threads
+        # Threads=1 because we parallelize via multiple worker processes
+        worker_engine.configure({"Hash": int(hash_mb), "Threads": 1})
+        atexit.register(worker_engine.quit)
+    except Exception as e:
+        print(f"Worker initialization failed for engine at {engine_path}: {e}")
+        worker_engine = None
+
+def worker_analyze_chunk(args):
+    """Worker process to analyze a chunk of games using the persistent engine."""
+    chunk_id, offsets, pgn_path, depth, multipv, cache_dir = args
+    
+    # Checkpoint result file
+    result_file = cache_dir / f"chunk_{chunk_id}.pkl"
+    if result_file.exists():
+        return f"Chunk {chunk_id} (Skipped)"
+
+    global worker_engine
+    if worker_engine is None:
+        return f"Chunk {chunk_id} Failed: Engine not initialized properly."
+
+    chunk_data = defaultdict(create_player_data)
+
+    try:
+        with open(pgn_path, 'r', encoding='utf-8') as f:
+            for offset in offsets:
+                f.seek(offset)
+                game = chess.pgn.read_game(f)
+                if not game: continue
+                
+                analyze_single_game(game, worker_engine, chunk_data, depth, multipv)
+                
+    except Exception as e:
+        return f"Chunk {chunk_id} Failed: {e}"
+        
+    # Save checkpoint
+    try:
+        with open(result_file, 'wb') as f:
+            pickle.dump(chunk_data, f)
+    except Exception as e:
+        return f"Chunk {chunk_id} Failed to save results: {e}"
+        
+    return f"Chunk {chunk_id} Done ({len(offsets)} games)"
+
+def analyze_single_game(game, engine, data_store, depth, multipv):
+    white = game.headers.get("White", "Unknown")
+    black = game.headers.get("Black", "Unknown")
+    date_str = game.headers.get("Date", "????" + ".??.??")
+
+    # Extract year for time range tracking
+    try:
+        year = int(date_str.split('.')[0].strip('?'))
+    except (ValueError, IndexError):
+        year = None
+    
+    # Update player data initialization and year tracking
+    for player in [white, black]:
+        pdata = data_store[player]
+        pdata['games'] += 1
+        
+        # Track Elo
+        try:
+            elo = int(game.headers.get("WhiteElo" if player == white else "BlackElo", 0))
+            if elo > 0: pdata['elos'].append(elo)
+        except: pass
+        
+        # Track Year
+        if year is not None:
+            pdata['first_year'] = min(pdata['first_year'], year)
+            pdata['last_year'] = max(pdata['last_year'], year)
+            
+    board = game.board()
+    node = game
+    ply = 0
+    
+    while node.variations:
+        next_node = node.variation(0)
+        move = next_node.move
+        ply += 1
+        
+        if ply <= BOOK_MOVES * 2:
+            board.push(move)
+            node = next_node
+            continue
+            
+        try:
+            info = engine.analyse(board, chess.engine.Limit(depth=depth), multipv=multipv)
+            res = []
+            for pv in info:
+                if 'pv' not in pv: continue
+                sc = pv['score'].white()
+                
+                if sc.is_mate():
+                    cp = MATE_SCORE if sc.mate() > 0 else -MATE_SCORE
+                else:
+                    cp = sc.score()
+                
+                res.append((pv['pv'][0], cp))
+                
+            if not res: raise Exception("No result from engine")
+            
+            best_cp = res[0][1]
+            if abs(best_cp) > CAP_EVAL: 
+                board.push(move)
+                node = next_node
+                continue
+                
+            raw_values = [x[1]/100.0 for x in res]
+            if board.turn == chess.BLACK:
+                raw_values = [-x for x in raw_values]
+            
+            actual_idx = -1
+            for i, (m, _) in enumerate(res):
+                if m == move:
+                    actual_idx = i
+                    break
+            
+            if actual_idx != -1:
+                player = white if board.turn == chess.WHITE else black
+                
+                # Store only the test set data for MLE fitting
+                data_store[player]['test_set'].append( (raw_values, actual_idx) )
+                
+        except Exception:
+            pass
+            
+        board.push(move)
+        node = next_node
+
+# --- MAIN DRIVER (Aggregation and Fitting) ---
+
+def index_pgn_games(path):
+    """Scans PGN file and returns file offsets for each game."""
+    offsets = []
+    with open(path, 'rb') as f:
+        while True:
+            offset = f.tell()
+            line = f.readline()
+            if not line: break
+            if line.startswith(b'[Event '):
+                offsets.append(offset)
+    return offsets
+
+def main():
+    parser = argparse.ArgumentParser(description="Regan IPR Parameter Fitter (s, c)")
+    parser.add_argument("pgn_file", type=Path, help="Input PGN")
+    parser.add_argument("--engine", type=Path, default=get_default_engine_path(), help="Stockfish path")
+    parser.add_argument("--output-csv", type=Path, required=True, help="Cumulative CSV file to append results to (e.g., results.csv)")
+    parser.add_argument("--depth", type=int, default=14, help="Analysis depth (default: 14)")
+    parser.add_argument("--cores", type=int, help="Force CPU cores (default: 80% of available)")
+    parser.add_argument("--chunk-size", type=int, default=CHUNK_SIZE, help="Games per processing chunk")
+    
+    args = parser.parse_args()
+    
+    if not args.pgn_file.exists():
+        print(f"Error: PGN file not found at {args.pgn_file}")
+        sys.exit(1)
+        
+    start_time = time.time()
+    
+    # 1. Indexing
+    print("Indexing PGN...")
+    offsets = index_pgn_games(args.pgn_file)
+    print(f"Found {len(offsets)} games.")
+    if not offsets:
+        print("No games found in PGN.")
+        sys.exit(0)
+
+    # 2. Setup Checkpoint Dir and Engine
+    cache_dir = args.pgn_file.parent / ".ipr_fit_cache" / args.pgn_file.stem
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    
+    try:
+        eng = chess.engine.SimpleEngine.popen_uci(str(args.engine))
+        eng.quit()
+        print(f"Engine validated: {args.engine}")
+    except Exception as e:
+        print(f"Error starting engine at {args.engine}: {e}")
+        sys.exit(1)
+
+    # 3. Parallel Analysis
+    total_cores = multiprocessing.cpu_count()
+    use_cores = args.cores if args.cores else max(1, int(total_cores * 0.8))
+    
+    # Calculate Hash per worker (60% of System RAM / workers)
+    total_ram = psutil.virtual_memory().total
+    total_hash_mb = (total_ram * 0.6) / (1024 * 1024)
+    hash_per_worker = max(16, int(total_hash_mb / use_cores)) # Min 16MB
+    
+    print(f"Starting parallel analysis with {use_cores} cores...")
+    print(f"System RAM: {total_ram / (1024**3):.1f} GB. Allocating {hash_per_worker} MB Hash per worker (Total Hash: {int(hash_per_worker * use_cores / 1024)} GB)")
+    
+    chunks = [offsets[i:i + args.chunk_size] for i in range(0, len(offsets), args.chunk_size)]
+    pool_args = []
+    for i, chunk in enumerate(chunks):
+        pool_args.append((i, chunk, args.pgn_file, args.depth, MULTI_PV, cache_dir))
+        
+    with multiprocessing.Pool(processes=use_cores, 
+                              initializer=init_worker, 
+                              initargs=(args.engine, hash_per_worker)) as pool:
+        for res in pool.imap_unordered(worker_analyze_chunk, pool_args):
+            print(res)
+            
+    print(f"\nAnalysis complete. Time: {time.time() - start_time:.1f}s")
+    
+    # 4. Aggregate Results
+    print("Aggregating results from checkpoints...")
+    master_data = defaultdict(create_player_data)
+    pickle_files = list(cache_dir.glob("chunk_*.pkl"))
+    
+    for pkl in pickle_files:
+        try:
+            with open(pkl, 'rb') as f:
+                chunk_data = pickle.load(f)
+                for player, pdata in chunk_data.items():
+                    master_data[player]['test_set'].extend(pdata['test_set'])
+                    master_data[player]['elos'].extend(pdata['elos'])
+                    master_data[player]['games'] += pdata['games']
+                    master_data[player]['first_year'] = min(master_data[player]['first_year'], pdata['first_year'])
+                    master_data[player]['last_year'] = max(master_data[player]['last_year'], pdata['last_year'])
+        except Exception as e:
+            print(f"Error reading checkpoint {pkl}: {e}")
+            
+    total_moves = sum(len(p['test_set']) for p in master_data.values())
+    print(f"Total aggregated data: {len(master_data)} players, {total_moves} moves analyzed.")
+
+    # 5. Perform (s, c) Fitting (GLOBAL)
+    print("\n--- Performing Global Parameter Fitting (s, c) ---")
+    final_output = []
+    MIN_MOVES = 30 
+    
+    # Aggregate ALL data
+    global_test_set = []
+    all_elos = []
+    global_first_year = float('inf')
+    global_last_year = float('-inf')
+    
+    for player, data in master_data.items():
+        if len(data['test_set']) > 0:
+            global_test_set.extend(data['test_set'])
+            all_elos.extend(data['elos'])
+            global_first_year = min(global_first_year, data['first_year'])
+            global_last_year = max(global_last_year, data['last_year'])
+            
+    total_moves_fit = len(global_test_set)
+    print(f"Total moves for fitting: {total_moves_fit}")
+    
+    if total_moves_fit < MIN_MOVES:
+         print(f"Insufficient total moves ({total_moves_fit} < {MIN_MOVES}). Fitting skipped.")
+    else:     
+        # Optimization Target: Minimize Percentile Score deviation (Sq,c) - Section 6
+        def percentile_score(params):
+            s, c = params
+            if s <= 0.001 or c <= 0.001: return 1e9 # Boundary check
+            
+            # Grid of quantiles q from 0.05 to 0.95 step 0.05
+            qs = np.arange(0.05, 1.0, 0.05)
+            # Create a counts array for each q
+            observation_counts = np.zeros(len(qs))
+            total_valid_moves = 0
+            
+            for vals, played_idx in global_test_set:
+                if played_idx >= len(vals): continue
+                
+                probs = calculate_move_probabilities(vals, s, c)
+                if not probs: continue
+                
+                p_played = probs[played_idx]
+                p_minus = sum(probs[:played_idx])
+                p_plus = p_minus + p_played
+                
+                # 1. Full Up Contribution: p_plus <= q
+                # If q is greater than or equal to p_plus, this move counts as 1.0 "up"
+                observation_counts += (qs >= p_plus).astype(float)
+                
+                # 2. Straddle Contribution: p_minus < q < p_plus
+                if p_played > 1e-9:
+                    mask = (qs > p_minus) & (qs < p_plus)
+                    if np.any(mask):
+                        fractions = (qs[mask] - p_minus) / p_played
+                        observation_counts[mask] += fractions
+                        
+                total_valid_moves += 1
+                
+            if total_valid_moves == 0: return 1e9
+            
+            observed_R = observation_counts / total_valid_moves
+            
+            # Score = Sum ( | R(q) - q |^2 ) -> L2 distance (Least Squares)
+            sq_errors = (observed_R - qs) ** 2
+            return np.sum(sq_errors)
+            
+        # Perform Fitting
+        print(f"Fitting global parameters using Percentile Method on {total_moves_fit} moves...")
+        try:
+            # Bounds: s [0.01, 1.0], c [0.1, 2.0]
+            res = minimize(percentile_score, [0.09, 0.5], bounds=[(0.01, 1.0), (0.1, 2.0)], method='L-BFGS-B')
+            s_fit, c_fit = res.x
+            success = res.success
+            print(f"  Final Score (Sq,c): {res.fun:.6f}")
+        except Exception as e:
+            print(f"  Fit failed: {e}")
+            success = False
+            s_fit, c_fit = 0, 0
+
+        # --- Extended Metrics Calculation (Section 7) ---
+        # AE_e: Expected Average Error (Predicted)
+        # AE_a: Actual Average Error
+        # Match_e: Expected Match Rate
+        # Match_a: Actual Match Rate
+        # Qfit: Quality of fit (RMS of percentile differences)
+        
+        total_expected_error = 0
+        total_actual_error = 0
+        total_expected_match = 0
+        total_actual_match = 0
+        total_positions = 0
+        
+        for vals, played_idx in global_test_set:
+            if played_idx >= len(vals): continue
+            
+            # Re-calculate probabilities with BEST FIT parameters
+            probs = calculate_move_probabilities(vals, s_fit, c_fit)
+            if not probs: continue
+            
+            # Calculate deltas in WP space
+            wps = [centipawns_to_winprob(v * 100) for v in vals]
+            best_wp = wps[0]
+            deltas = []
+            for wp in wps:
+                d = best_wp - wp
+                if d < 0: d = 0
+                deltas.append(d)
+                
+            # Expected stats
+            # Sum( prob[i] * delta[i] )
+            expected_pos_error = sum(p * d for p, d in zip(probs, deltas))
+            # Probability assigned to the best move (index 0)
+            expected_match = probs[0]
+            
+            # Actual stats
+            # Delta of the move actually played
+            actual_pos_error = deltas[played_idx] if played_idx < len(deltas) else 0.0
+            # Did they play the best move? (assuming sorted MultiPV, index 0 is best)
+            actual_match = 1.0 if played_idx == 0 else 0.0
+            
+            total_expected_error += expected_pos_error
+            total_actual_error += actual_pos_error
+            total_expected_match += expected_match
+            total_actual_match += actual_match
+            total_positions += 1
+            
+        if total_positions > 0:
+            ae_e = total_expected_error / total_positions
+            ae_a = total_actual_error / total_positions
+            match_e = (total_expected_match / total_positions) * 100 # percentage
+            match_a = (total_actual_match / total_positions) * 100   # percentage
+        else:
+            ae_e = 0; ae_a = 0; match_e = 0; match_a = 0
+
+        # Calculate Qfit (RMS of S_sc)
+        # S_sc is Sum(|Rq - q|^2).
+        # We assume 19 points in grid (0.05..0.95).
+        # Qfit approx sqrt(Score / 19).
+        qfit = math.sqrt(res.fun / 19.0) if success else 0.0
+
+        if success:
+            filtered_elos = [e for e in all_elos if e > 0]
+            if filtered_elos:
+                avg_elo = int(sum(filtered_elos) / len(filtered_elos))
+                min_elo = min(filtered_elos)
+                max_elo = max(filtered_elos)
+            else:
+                avg_elo = 0
+                min_elo = 0
+                max_elo = 0
+            
+            first_year = int(global_first_year) if global_first_year != float('inf') else 'N/A'
+            last_year = int(global_last_year) if global_last_year != float('-inf') else 'N/A'
+            
+            print(f"  Result: s={s_fit:.4f}, c={c_fit:.4f}")
+            print(f"  Metrics: AE(Pred/Act)={ae_e:.4f}/{ae_a:.4f}, Match(Pred/Act)={match_e:.1f}%/{match_a:.1f}%, Qfit={qfit:.4f}")
+
+            final_output.append({
+                'filename': args.pgn_file.name,
+                'Games': len(offsets), 
+                'Moves': total_moves_fit,
+                'AvgElo': avg_elo,
+                'MinElo': min_elo,
+                'MaxElo': max_elo,
+                's': round(s_fit, 4),
+                'c': round(c_fit, 4),
+                'AE_e': round(ae_e, 6),
+                'AE_a': round(ae_a, 6),
+                'Match_e': round(match_e, 2),
+                'Match_a': round(match_a, 2),
+                'Qfit': round(qfit, 5),
+                'FirstYear': first_year,
+                'LastYear': last_year,
+            })
+
+    # 6. Write/Append to CSV
+    if final_output:
+        csv_path = args.output_csv
+        fields = ['filename', 'Games', 'Moves', 'AvgElo', 'MinElo', 'MaxElo', 
+                  's', 'c', 'AE_e', 'AE_a', 'Match_e', 'Match_a', 'Qfit', 
+                  'FirstYear', 'LastYear']
+        
+        # Check if file exists to determine if header is needed
+        file_exists = csv_path.exists()
+        
+        try:
+            # Open file in append mode ('a')
+            with open(csv_path, 'a', newline='', encoding='utf-8') as f:
+                writer = csv.DictWriter(f, fieldnames=fields)
+                
+                if not file_exists or os.path.getsize(csv_path) == 0:
+                    writer.writeheader()
+                    
+                writer.writerows(final_output)
+            print(f"\nSuccessfully appended results to: {csv_path.resolve()}")
+        except Exception as e:
+            print(f"Error writing/appending to CSV: {e}")
+    else:
+        print("\nNo parameters were successfully fitted.")
+
+if __name__ == "__main__":
+    multiprocessing.freeze_support()
+    main()
+
+
+	:
+High‑level verdict
+-------------------
+The code captures the **overall structure** of Regan’s IPR fitting procedure quite well:
+
+- Uses a strong engine with multi‑PV to get multiple moves’ evaluations.
+- Builds, for each position, a vector of engine scores and the index of the actual move.
+- Uses a two‑parameter model with an inverse‑exponential curve: exp(-(delta/s)^c).
+- Uses a percentile‑based objective function very close to Regan’s Section 6.
+- Minimizes Σ_q (R(q) − q)² over q∈{0.05,…,0.95} using L‑BFGS‑B.
+- Derives summary metrics (expected/actual error, expected/actual match, Qfit) similar in spirit to Regan’s table.
+
+However, there are also several **deviations and approximations** from the algorithm described in the paper. Some are probably acceptable design choices; others could materially affect comparability to Regan’s work.
+
+Below is a structured comparison.
+
+1. Engine analysis and data collection
+-------------------------------------
+**Paper:**
+
+- Uses Rybka 3 at a fixed depth (13 ply) and usually 50‑PV.
+- Evaluates all relevant moves, orders them by evaluation, builds Δᵢ = e(m₀) − e(mᵢ) in *pawn units*.
+- Uses only moves from move 9 onward.
+- Discards positions where |e| ≥ 2–3 pawns (paper mentions 3 pawns for Rybka data).
+- Applies a **scale correction** to errors as a function of |e|.
+
+**Code:**
+
+- Uses Stockfish instead of Rybka (fine in principle, but makes direct numeric comparability with the paper difficult).
+- MultiPV: `MULTI_PV = 5` (not 20–50 as in the paper).
+- Depth: user‑specified (default 14), similar idea.
+- Book moves: skips the first `BOOK_MOVES * 2` plies = 16 plies → corresponds roughly to skipping the first 8 moves; this matches the paper’s “begin on move 9” heuristic.
+- Discards positions if `abs(best_cp) > CAP_EVAL` with `CAP_EVAL = 300` (3 pawns, since cp is centipawns). This matches the 3‑pawn filter reasonably well.
+- Board perspective handling:
+  - `sc = pv['score'].white()`
+  - If `board.turn == chess.BLACK`, it negates `raw_values` so that values are always from the side‑to‑move perspective. This is consistent with the paper’s “negate for Black” convention.
+- Does **not** implement the **scale correction** vs. |e| described in Section 5 (the ℓ(x) / integral adjustment), nor does it explicitly use the current position’s overall evaluation for filtering beyond the simple CAP_EVAL cutoff.
+
+**Assessment:**
+
+- Data extraction logic is broadly correct and consistent with the model: multi‑PV scores, side‑to‑move normalization, skip openings, filter “garbage time” positions.
+- Major differences:
+  - Only 5 PVs instead of a near‑full move set (up to 50): this means you are modeling choices among the top 5 engine moves, not among *all* legal moves; that can bias the parameter estimates.
+  - No scale correction for |e|: the paper found that error statistics distort strongly as |e| increases; this implementation ignores that adjustment.
+
+2. Definition of Δ and g(Δ; s, c)
+---------------------------------
+**Paper’s core model:**
+
+- Δᵢ = e(m₀) − e(mᵢ), where e are engine evaluations in pawn units.
+- g(Δ; s, c) = exp(−(Δ/s)^c) (inverse‑exponential family they standardize on).
+- pᵢ ∝ g(Δᵢ; s, c) with normalization over all moves in the spread.
+
+**Code:**
+
+- For each position, `raw_values` is the list of Stockfish centipawn scores divided by 100 (so in pawns), from multi‑PV.
+- It then defines probabilities in `calculate_move_probabilities(values, s, c)` as follows:
+  
+  1. Convert each `v` (pawn units) to a *win probability* via a logistic:
+     
+     win_prob = 1 / (1 + 10^{−cp/400}), cp = 100·v.
+  
+  2. Let `best_wp = max(win_probs)`.
+  
+  3. Define `deltas = max(0, best_wp − wp_i)`.
+  
+  4. Use g in **win‑probability space**:
+     
+     weight_i = exp(−(delta_i / s)^c).
+  
+  5. Normalize weights → probabilities.
+
+**Differences:**
+
+- The paper defines Δᵢ in **evaluation (pawn) space**: Δᵢ = e(m₀) − e(mᵢ).
+- The code defines Δᵢ’ as a difference in **win‑probability** space: Δᵢ’ = best_wp − wpᵢ.
+- Then the same inverse‑exponential functional form is applied in WP‑space, not CP or pawn space.
+
+**Implications:**
+
+- This is a conceptual divergence. Regan/Haworth’s g(Δ) is defined over pawn‑loss, not win‑prob differences.
+- Using win‑prob deltas compresses large evaluation differences and stretches small ones. The eventual fitted (s,c) will thus not be directly comparable to the paper’s s,c scale.
+- The shape of choice behavior might still be modeled reasonably, but this is no longer a strict implementation of the paper’s Δ definition.
+
+3. Move probability model and normalization
+------------------------------------------
+**Paper (Shares model):**
+
+- sᵢ = g(Δᵢ; s,c).
+- pᵢ = sᵢ / Σ_j sⱼ.
+- g(Δ; s,c) = exp(−(Δ/s)^c).
+
+**Code:**
+
+- `calculate_move_probabilities` exactly uses:
+  
+  weights_i = exp(−(delta_i / s)^c), then pᵢ = weights_i / Σ_j weights_j.
+
+Modulo the change of *what* delta is (WP vs. pawn evaluation), the functional form is correctly implemented.
+
+**Good:**
+
+- The code accurately implements the Shares model with inverse‑exponential curves and proper normalization.
+- It includes underflow protections and fallback for zero total weight; these are reasonable numeric safeguards.
+
+4. Percentile fitting procedure
+-------------------------------
+**Paper Section 6 (percentiling):**
+
+For each (q,s,c) grid point:
+
+1. For each tuple t with spread Δ^t and played index iₜ:
+   - Compute pᵢ^t = g(Δᵢ^t; s,c)/S^t.
+   - Compute p⁻ = Σ_{j < iₜ} pⱼ^t, p⁺ = p⁻ + p_{iₜ}^t.
+   - If p⁺ ≤ q: count tuple as “up”.
+   - Else if p⁻ ≥ q: “down”.
+   - Else (p⁻ < q < p⁺): split weight: up = (q − p⁻)/p_{iₜ}^t, down = (p⁺ − q)/p_{iₜ}^t.
+
+2. R_q^{s,c} = percentage of “up” tuples over all tuples.
+
+3. S_{s,c} = Σ_q (R_q^{s,c} − q)².
+
+Minimize S_{s,c} over s,c.
+
+**Code:**
+
+- Defines `percentile_score(params)` :
+  
+  - s,c boundary check.
+  - q grid: `qs = np.arange(0.05, 1.0, 0.05)` → {0.05,…,0.95}.
+  - For each (vals, played_idx) in global_test_set:
+    * `probs = calculate_move_probabilities(vals, s, c)`.
+    * `p_played = probs[played_idx]`.
+    * `p_minus = sum(probs[:played_idx])`, `p_plus = p_minus + p_played`.
+    * Full “up” contribution: `observation_counts += (qs >= p_plus).astype(float)`.
+    * Straddle contribution: if p_played > 1e−9:
+      - mask = (qs > p_minus) & (qs < p_plus).
+      - fractions = (qs[mask] − p_minus) / p_played.
+      - `observation_counts[mask] += fractions`.
+  - total_valid_moves counts tuples.
+  - observed_R = observation_counts / total_valid_moves.
+  - Score = Σ_q (observed_R(q) − q)².
+
+**Comparison:**
+
+- The *logic* closely mirrors the paper’s algorithm:
+  - Uses p_minus, p_plus, and percentile grid q.
+  - Accumulates an “up mass” per q across all positions.
+  - Divides by total positions to get R(q).
+  - Minimizes Σ_q (R(q) − q)².
+
+- Minor implementation difference: the paper conceptually splits each *tuple* between up/down; this code is computing, for each **q**, contributions that approximate the same measure. The method is equivalent in effect.
+
+- Also important: the paper originally described scanning over a grid in (q,s,c) and then computing S_{s,c} for fixed s,c. The code does not discretely step over s,c; it uses **continuous optimization (L‑BFGS‑B)** directly on s and c, which is an improvement / generalization.
+
+**Conclusion:**
+
+- The percentile fitting method is very faithfully implemented.
+- This is one of the strongest aspects of adherence to the original algorithm.
+
+5. Maximum likelihood vs. percentiling
+--------------------------------------
+**Paper:**
+
+- Mentions both maximum‑likelihood estimation and percentiling.
+- Percentiling is emphasized for checking the shape of the g curve across a range of Δ.
+
+**Code:**
+
+- The comments say “Perform Maximum Likelihood Estimation (MLE) to fit the player parameters (s, c)”, but the actual fitting uses the **percentile_score** function as objective.
+- There is **no explicit separate maximum‑likelihood objective** implemented (like Σ_t log p_{iₜ}^t) for s,c.
+
+**Assessment:**
+
+- The code follows the **percentile fitting** part of the method, not an explicit MLE; the docstring is slightly misleading.
+- This is acceptable if you intend to use the percentile criterion as your main objective, but strictly speaking, it does not implement the MLE step mentioned in the paper.
+
+6. Granularity: global vs per‑cohort fitting
+-------------------------------------------
+**Paper:**
+
+- Fits (s,c) **per Elo band** and per time period (e.g., 2700, 2600, … for 2006–2009, 1991–1994, etc.).
+- Uses separate datasets per cohort to map Elo ↔ (s,c).
+
+**Code:**
+
+- Aggregates all players’ data into **one global_test_set** and fits a **single global (s,c)**.
+- The comments mention “This should take input from a PGN file with narrow range of Elo ratings for all players!” which roughly corresponds to the idea that this run should represent a single cohort. But the code itself does not enforce this; it only reports aggregate Elo stats.
+
+**Assessment:**
+
+- For a single PGN containing a narrow rating band, this is aligned with the idea of fitting (s,c) for that rating band.
+- For a PGN spanning many rating levels, this would blend skill levels and depart from the intended use.
+
+7. Metrics: AE, match rate, Qfit
+--------------------------------
+**Paper:**
+
+- Reports, per Elo band:
+  - s, c, “normalized s”, predicted vs actual move‑match percentage, predicted vs actual average difference, Qfit.
+- Δ in the paper for AE is in **pawn evaluation** units (after scale correction and filters).
+
+**Code:**
+
+- After fitting (s_fit, c_fit), it computes:
+
+  - For each position:
+    * recomputes probabilities with best‑fit s,c.
+    * computes win probabilities wps for each value.
+    * deltas = best_wp − wp_i (again in WP space).
+    * expected_error = Σ_i pᵢ·delta_i.
+    * expected_match = p₀ (prob of best move).
+    * actual_error = delta of played move.
+    * actual_match = 1 if played_idx == 0 else 0.
+
+  - Averages of those are AE_e, AE_a, Match_e, Match_a.
+  - Qfit = sqrt(S_{s,c} / 19) where 19 is the number of q points.
+
+**Differences:**
+
+- The AE and deltas are in **win‑probability space**, whereas Regan’s AE is in **pawn units**.
+- No scale correction by |e|.
+
+**Assessment:**
+
+- The structure mirrors Regan’s metrics, but the values are on a different scale.
+- Qfit computation is directly comparable (RMS of percentile differences), which is good.
+
+8. Summary of fidelity
+----------------------
+**Faithfully implemented components:**
+
+1. Multi‑PV engine analysis; use of engine as “relatively omniscient” judge.
+2. Side‑to‑move normalization of evaluations.
+3. Skip book moves; discard high‑advantage positions.
+4. Parameterization with s (sensitivity) and c (competence).
+5. Use of inverse‑exponential curve family: exp(−(Δ/s)^c).
+6. Shares model: pᵢ ∝ g(Δᵢ; s,c) with normalization.
+7. Percentile fitting method (Section 6) implemented in detail and minimized using L‑BFGS‑B.
+8. Computation of Qfit as RMS of percentile discrepancies.
+
+**Key differences / deviations from the paper:**
+
+1. **Δ definition**:
+   - Paper: Δ in pawn‑evaluation space (e(m₀) − e(mᵢ)).
+   - Code: Δ in **win‑probability space** derived from a logistic transformation of centipawns.
+
+2. **Number of candidate moves**:
+   - Paper: effectively all (or up to 20–50) legal moves; N often large enough to be full move set.
+   - Code: only the top `MULTI_PV` moves (default 5), not necessarily all legal moves.
+
+3. **Scale correction vs |e|**:
+   - Paper: carefully studies and corrects for systematic dependence of error on |e| with a function ℓ(x).
+   - Code: no such correction; only a simple CAP_EVAL cutoff.
+
+4. **MLE vs percentile**:
+   - Paper: discusses both; percentiling is used to validate shape; MLE is the canonical statistical estimator.
+   - Code: solely optimizes the percentile score; no separate MLE objective.
+
+5. **Cohort structure**:
+   - Paper: fits separate (s,c) per Elo band and time period.
+   - Code: fits a single (s,c) per whole PGN file (which may or may not be a narrow band).
+
+6. **Unit of AE**:
+   - Paper: AE in pawn units (after corrections).
+   - Code: AE in win‑probability units.
+
+Practical recommendation
+-------------------------
+If the goal is to be **as close as possible** to Regan’s published IPR methodology, the main things to change would be:
+
+1. Use Δᵢ = e(m₀) − e(mᵢ) directly in pawn (or centipawn) space for g(Δ; s,c), rather than converting scores to win probabilities first.
+2. Increase `MULTI_PV` so that you approximate the full legal move set (e.g., 20–50), and/or explicitly generate all legal moves with engine evaluations.
+3. Implement the scale correction vs. |e| as in Section 5 (ℓ(x), integration of corrected errors) or at least some approximate rescaling that reduces the dependence of average Δ on |e|.
+4. Optionally add a pure MLE objective (sum of log probabilities of played moves) alongside the percentile criterion, as per the paper.
+5. Restrict input to narrow Elo bands (or segment the PGN) if you want per‑cohort s,c comparable to Regan’s tables.
+
+In its current form, the code is **a good qualitative implementation of Regan’s modeling and fitting framework**, but with some important quantitative and conceptual differences (most notably the use of win probabilities instead of pawn evals and limiting to top‑5 moves).
+
+Step GHG (2025-12-16 08:46) :
+{"vsg_energy_consumption": {"value": 3226.75, "unit": "Wh"}, "vsg_ghg_consumption": {"value": 322.68, "unit": "gCO\u2082eq"}}
+
+	>Generated on 2025-12-16 08:46
+	

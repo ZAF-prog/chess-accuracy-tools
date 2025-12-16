@@ -12,7 +12,7 @@ def try_pypdf2(path):
             
             # Extract text from pages 7-10
             text = []
-            for i in range(6, min(10, len(reader.pages))):
+            for i in range(1, min(10, len(reader.pages))):
                 page = reader.pages[i]
                 content = page.extract_text()
                 text.append(f"\n--- PAGE {i+1} ---\n{content}")
@@ -31,7 +31,7 @@ def try_pypdf2(path):
                 print(f"Number of pages: {len(reader.pages)}")
                 
                 text = []
-                for i in range(6, min(10, len(reader.pages))):
+                for i in range(1, min(10, len(reader.pages))):
                     page = reader.pages[i]
                     content = page.extract_text()
                     # print(f"\n--- PAGE {i+1} ---")
@@ -56,7 +56,7 @@ def try_pdfplumber(path):
             print(f"Number of pages: {len(pdf.pages)}")
             
             text = []
-            for i in range(6, min(10, len(pdf.pages))):
+            for i in range(1, min(10, len(pdf.pages))):
                 page = pdf.pages[i]
                 content = page.extract_text()
                 # print(f"\n--- PAGE {i+1} ---") 
