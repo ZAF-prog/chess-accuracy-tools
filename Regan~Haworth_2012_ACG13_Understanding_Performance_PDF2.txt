@@ -1,0 +1,278 @@
+
+--- PAGE 2 ---
+Central Archive at the University of Reading 
+Reading’s research outputs online
+
+
+--- PAGE 3 ---
+Understanding Distributions of Chess Performances
+Kenneth W. Regan1, Bartlomiej Macieja2, and Guy McC. Haworth3
+1Department of CSE, University at Buffalo, Amherst, NY 14260 USA; regan@buffalo.edu
+2Warsaw, Poland
+3School of Systems Engineering, University of Reading, UK; guy.haworth@bnc.oxon.org
+Abstract. This paper studies the population of chess players and the distribu-
+tion of their performances measured by Elo ratings and by computer analysis of
+moves. Evidence that ratings have remained stable since the inception of the Elo
+system in the 1970’s is given in several forms: by showing that the population
+of strong players ﬁts a simple logistic-curve model without inﬂation, by plotting
+players’ average error against the FIDE category of tournaments over time, and by
+skill parameters from a model that employs computer analysis keeping a nearly
+constant relation to Elo rating across that time. The distribution of the model’s In-
+trinsic Performance Ratings can hence be used to compare populations that have
+limited interaction, such as between players in a national chess federation and
+FIDE, and ascertain relative drift in their respective rating systems.
+Keywords. Computer games, chess, ratings, statistics.
+1 Introduction
+Chess players form a dynamic population of varying skills, fortunes, and aging ten-
+dencies, and participate in zero-sum contests. A numerical rating system based only on
+the outcomes of the contests determines everyone’s place in the pecking order. There
+is much vested interest in the accuracy and stability of the system, with signiﬁcance
+extending to other games besides chess and potentially wider areas. Several fundamen-
+tal questions about the system lack easy answers: How accurate are the ratings? How
+can we judge this? Have ratings inﬂated over time? How can different national rating
+systems be compared with the FIDE system? How much variation in performance is
+intrinsic to a given skill level?
+This paper seeks statistical evidence beyond previous direct attempts to measure
+the system’s features. We examine player rating distributions across time since the in-
+ception of the Elo rating system by the World Chess Federation (FIDE) in 1971. We
+continue work by Haworth, DiFatta, and Regan [1–4] on measuring performance ‘in-
+trinsically’ by the quality of moves chosen rather than the results of games. The models
+in this work have adjustable parameters that correspond to skill levels calibrated to the
+Elo scale. We have also measured aggregate error rates judged by computer analysis of
+entire tournaments, and plotted them against the Elo rating category of the tournament.
+Major ﬁndings of this paper extend the basic result of [4] that ratings have remained
+stable since the 1970’s, contrary to the popular wisdom of extensive rating inﬂation .
+Section 5 extends that work to the Elo scale, while the other sections present indepen-
+dent supporting material. Related previous work [5–7] is discussed below.
+
+--- PAGE 4 ---
+2 Ratings and Distributions
+The Elo rating system, which originated for chess but is now used by many other games
+and sports, provides rules for updating ratings based on performance in games against
+other Elo-rated players, and for bringing new (initially ‘unrated’) players into the sys-
+tem. In chess they have a numerical scale where 2800 is achieved by a handful of top
+players today, 2700 is needed for most highest-level tournament invitations, 2600 is a
+‘strong’ grandmaster (GM), while 2500 is typical of most GM’s, 2400 of International
+Masters, 2300 of FIDE Masters, and 2200 of masters in national federations. We em-
+phasize that the ratings serve two primary purposes:
+1. To indicate position in the world ranking, and
+2. To indicate a level of skill.
+These two purposes lead to different interpretations of what it means for “inﬂation”
+to occur. According to view 1, 2700 historically meant what the neighborhood of 2800
+means now: being among the very best, a true world championship challenger. As late
+as 1981, Anatoly Karpov topped the ratings at 2695, so no one had 2700, while today
+there are forty-ﬁve players 2700 and higher, some of whom have never been invited to
+an elite event. Under this view, inﬂation has occurred ipso-facto .
+While view 2 is fundamental and has always had adherents, for a long time it had
+no reliable benchmarks. The rating system itself does not supply an intrinsic meaning
+for the numbers and does not care about their value: arbitrarily add 1000 to every ﬁgure
+in 1971 and subsequent initialization of new players, and relative order today would
+be identical. However, recent work [4] provides a benchmark to calibrate the Elo scale
+to games analyzed in the years 2006–2009, and ﬁnds that ratings ﬁfteen and thirty
+years earlier largely correspond to the same benchmark positions. In particular, today’s
+echelon of over forty 2700+ players all give the same or better statistics in this paper
+than Karpov and Viktor Korchnoi in their prime. We consider that two further objections
+to view 2 might take the following forms:
+(a) If Karpov and Korchnoi had access to today’s computerized databases and more
+extensive opening publications, they would have played (say) 50 to 100 points
+higher—as Kasparov did as the 1980’s progressed.
+(b) Karpov and Korchnoi were supreme strategists whose strategic insight and depth
+of play does not show up in ply-limited computer analysis.
+We answer (a) by saying we are concerned only with the quality of moves made
+on the board, irrespective of whether and how they are prepared. Regarding also (b)
+we ﬁnd that today’s elite make fewer clear mistakes than their forebears. This factor
+impacts skill apart from strategic depth. The model from [4] used in this paper ﬁnds a
+natural weighting for the relative importance of avoiding mistakes.
+Our position in subscribing to view 2 is summed up as today’s players deserve their
+ratings . The numerical rating should have a ﬁxed meaning apart from giving a player’s
+rank in the world pecking order. In subsequent sections we present the following ev-
+idence that there has been no inﬂation, and that the models used for our conclusions
+produce reasonable distributions of chess performances.
+
+--- PAGE 5 ---
+–The proportion of Master-level ratings accords exactly with what is predicted from
+the growth in population alone, without adjusting for inﬂation.
+–A version, called AE for “average error,” of the “average difference” (AD) statis-
+tic used by Guid and Bratko [5] (see also [6, 7]) to compare world championship
+matches. An important scaling discovery leads to Scaled Average Error (SAE). Our
+work shows that tournaments of a given category have seen fairly constant (S)AE
+over time.
+–“Intrinsic Ratings” as judged from computer analysis have likewise remained rela-
+tively constant as a function of Elo rating over time—for this we reﬁne the method
+of Regan and Haworth [4].
+–Intrinsic Ratings for the world’s top players have increased steadily since the mid-
+1800s, mirroring the way records have improved in many other sports and human
+endeavors.
+–Intrinsic Performance Ratings (IPR’s) for players in events fall into similar distribu-
+tions as assumed for Tournament Performance Ratings (TPR’s) in the rating model,
+with somewhat higher variance. They can also judge inﬂation or deﬂation between
+two rating systems, such as those between FIDE and a national federation much of
+whose population has little experience in FIDE-rated events.
+The last item bolsters the Regan-Haworth model [4] as a reliable indicator of per-
+formance, and hence enhances the signiﬁcance of the third and fourth items.
+The persistence of rating controversies after many years of the standard analysis of
+rating curves and populations calls to mind the proverbial elephant that six blind men
+are trying to picture. Our non-standard analyses may take the hind legs, but since they
+all agree, we feelm we understand the elephant. Besides providing new insight into
+distributional analysis of chess performances, the general nature of our tools allows
+application in other games and ﬁelds besides chess.
+3 Population Statistics
+Highlighted by the seminal work of de Solla Price on the metrics of science [8], re-
+searchers have gained an understanding of the growth of human expertise in various
+subjects. In an environment with no limits on resources for growth, de Solla Price
+showed that the rate of growth is proportional to the population,
+dN
+dtaN; (1)
+which yields an exponential growth curve. For example, this holds for a population
+of academic scientists, each expected to graduate some number a > 1of students as
+new academic scientists. However, this growth cannot last forever, as it would lead
+to a day when the projected number of scientists would be greater than the total world
+population. Indeed, Goodstein [9] showed that the growth of PhD’s in physics produced
+each year in the United States stopped being exponential around 1970, and now remains
+at a constant level of about 1000.
+The theory of the growth of a population under limiting factors has been success-
+ful in other subjects, especially in biology. Since the work ofVerhulst [10] it has been
+
+--- PAGE 6 ---
+widely veriﬁed that in an environment with limited resources the growth of animals (for
+instance tigers on an island) can be well described by a logistic function
+N(t) =Nmax
+(1 +a(exp) bt)arising fromdN
+dtaN bN2; (2)
+wherebN2represents a part responsible for a decrease of a growth due to an over-
+population, which is quadratic insofar as every animal interacts, for instance ﬁghts for
+resources, with every other animal. We demonstrate that this classic model also de-
+scribes the growth of the total number of chess players in time with a high degree of
+ﬁt.
+We use a minimum rating of 2203—which FIDE for the ﬁrst three Elo decades
+rounded up to 2205—because the rating ﬂoor and the start rating of new players have
+been signiﬁcantly reduced from 2200 which was used for many years.
+Figure 1 shows the number of 2203+ rated players, and a curve obtained for some
+particular values of a,b, andNmax. Since there are many data points and only three pa-
+rameters, the ﬁt is striking. This implies that the growth of the number of chess players
+can be explained without a need to postulate inﬂation.
+4 Average Error and Results by Tournament Categories
+The ﬁrst author has run automated analysis of almost every major event in chess history,
+using the program R YBKA 3 [11] to ﬁxed reported depth 13 ply1in Single-PV mode.
+1That R YBKA versions often report the depth as -2 or -1 in UCI feedback has fueled speculation
+that the true depth here is 16, while the ﬁrst author ﬁnds it on a par in playing strength with
+some other prominent programs ﬁxed to depths in the 17–20 range.
+
+--- PAGE 7 ---
+This mode is similar to how Guid and Bratko [5] operated the program C RAFTY to
+depth (only) 12, and how others have run other programs since. Game turns 1–8, turns
+where R YBKA reported a more than 3.00 advantage already at the previous move, and
+turns involved in repetitions are weeded out.
+The analysis computations have included allround-robin events of Category 11 or
+higher, using all events given categories in the ChessBase Big 2010 database plus The
+Week In Chess supplements through TWIC 893 12/19/11. The categories are the aver-
+age rating of players in the event taken in blocks of 25 points; for instance, category 11
+means the average rating is between 2500 and 2525, while category 15 means 2600–
+2625.
+For every move that is not equivalent to R YBKA ’s top move, the “error” is taken
+as the value of the present position minus the value after the move played. The errors
+over a game or player-performance or an entire tournament are summed and divided by
+the number of moves (those not weeded out) to make the “Average Error” (AE) statis-
+tic. Besides including moves 9–12 and using Rybka depth 13 with a [ 3:00;+3:00]
+evaluation range rather than Crafty depth 12 with a [ 2:00;+2:00]range, our statistic
+differs from [5] in not attempting to judge the “complexity” of a position, and in several
+incidental ways.
+For large numbers of games, AD or AE seems to give a reasonable measure of
+playing quality, beyond relative ranking as shown in [6]. When aggregated for all tour-
+naments in a span of years, the ﬁgures were in fact used to make scale corrections for
+the in-depth mode presented in the next section. When AE is plotted against the turn
+number, sharply greater error for turns approaching the standard Move 40 time con-
+trol is evident; then comes a sharp drop back to previous levels after Move 41. When
+AE is plotted against the advantage or disadvantage for the player to move, in intervals
+of 0.10 or 0.05 pawns, a scaling pattern emerges. The AE for advantage 0.51–0.60 is
+almost double that for near-equality 0.01–0.10, while for -0.51 to -0.60 it is regularly
+more than double.
+It would seem strange to conclude that strong masters play only half as well when
+ahead or behind by half a pawn as even. Rather this seems to be evidence that human
+players perceive differences in value in proportion to the overall advantage for one side.
+This yields a log-log kind of scaling, with an additive constant that tests place close to 1,
+so we used 1. This is reﬂected in the deﬁnition of the scaled difference iin Equation 3
+below, since 1=(1 +jzj)in the body of a deﬁnite integral produces ln(1 +jzj). This
+produces Scaled Average Error (SAE).
+Figure 2 shows AE (called R3 for “raw” and the 3.00 evaluation cutoff) and SAE
+(SC3), while Figure 3 shows how both ﬁgures increase markedly toward the standard
+Move 40 time control and then level off. For these plots the tournaments were divided
+into historical “eras” E5 for 1970–1984, E6 for 1985–1999, E7 for 2000–2009, and
+E8 for 2010–. The tournaments totaled 57,610 games, from which 3,607,107 moves
+were analyzed (not counting moves 1–8 of each game which were skipped) and over
+3.3 million retained within the cutoff. Category 10 and lower tournaments that were
+also analyzed bring the numbers over 60,000 games and 4.0 million moves with over
+3.7 million retained. Almost all work was done on two quad-core Windows PC’s with
+analysis scripted via the Arena GUI v1.99 and v2.01.
+
+--- PAGE 8 ---
+Figure 2: Plot of raw AE vs. advantage for player to move, and ﬂattening to SAE.
+Figure 3: Plot of AE and SAE by turn number.
+Figures 4 and 5 below graph SAE for all tournaments by year as a four-year moving
+average , the latter covering moves 17–32 only. The ﬁve lines represent categories 11–
+12 (FIDE Elo 2500–2549 average rating), 13–14 (2550–2599), 15–16 (2600–2649),
+17–18 (2650–2699), and 19–20 (2700–2749). There were several category 21 events in
+1996–2001, none in 2002–2006, and several 21 and 22 events since 2007; the overall
+averages of the two groups are plotted as X for 2001 and 2011. The lowest category has
+the highest SAE and hence appears at the top.
+
+--- PAGE 9 ---
+Figure 4: SAE by tournament category, 4-yr. moving avg., 1971–2011.
+Figure 5: SAE by category for moves 17–32 only, 4-yr. moving avg., 1971–2011.
+Despite yearly variations the graphs allow drawing two clear conclusions: the cate-
+gories do correspond to different levels of SAE, and the lines by-and-large do not slope
+up to the right as would indicate inﬂation. Indeed, the downslope of SAE for categories
+above 2650 suggests some deﬂation since 1990. Since the SAE statistic depends on how
+tactically challenging a game is, and hence does not indicate skill by itself, we need a
+more intensive mode of analysis in order to judge skill directly.
+
+--- PAGE 10 ---
+5 Intrinsic Ratings Over Time
+Haworth [1, 2] and with DiFatta and Regan [3, 12, 4] developed models of fallible deci-
+sion agents that can be trained on players’ games and calibrated to a wide range of skill
+levels. Their main difference from [5–7] is the use of Multi-PV analysis to obtain uthor-
+itative values for all reasonable options, not just the top move(s) and the move played.
+Thus each move is evaluated in the full context of available options. The paper [6] gives
+evidence that for relative rankings of players, good results can be obtained even with
+relatively low search depths, and this is conﬁrmed by [7]. However, we argue that for an
+intrinsic standard of quality by which to judge possible rating drift, one needs greater
+depth, the full move context, and a variety of scientiﬁc approaches. The papers [3, 12]
+apply Bayesian analysis to characterize the performance of human players using a spec-
+trum of reference fallible agents . The work reported in [4] and this paper uses a method
+patterned on multinomial Bernoulli trials, and obtains a corresponding spectrum.
+Thescaling of AE was found important for quality of ﬁt, and henceforth AE means
+SAE. It is important to note that SAE from the last section does not directly carry
+over to intrinsic ratings in this section, because here we employ the full move analysis
+of Multi-PV data. They may be expected to correspond in large samples such as all
+tournaments in a range of years for a given category, but here we are considering smaller
+samples from a single event or a single player in a single event, and at this stage we
+are studying those with more intensive data. What we do instead is use statistical ﬁts
+of parameters called s;cto generate projectionsAEefor every position, and use the
+aggregate projected AEeon a reference suite of positions as our “standard candle” to
+index to the Elo scale.
+We also generate projected standard deviations, and hence projected conﬁdence in-
+tervals, forAEe(and also the ﬁrst-move match statistic MMe) as shown below. This
+in turn yields projected conﬁdence intervals for the intrinsic ratings. Preliminary testing
+with randomly-generated subsets of the training data suggest that the actual deviations
+in real-world data are bounded by a factor of 1:15for the MM statistic and 1:4for AE,
+and these are signiﬁed by a subscripted afor ‘actual’ in tables below. The projections
+represent the ideal case of zero modeling error, so we regard the difference shown by
+the tests as empirical indication of the present level of modeling error.
+Models of this kind function in one direction by taking in game analyses and using
+statistical ﬁtting to generate values of the skill parameters to indicate the intrinsic level
+of the games. They function in the other direction by taking pre-set values of the skill
+parameters and generating a probability distribution of next moves by an agent of that
+skill proﬁle. The deﬁning equation of the particular model used in [4], relating the
+probabilitypiof thei-th alternative move to p0for the best move and its difference in
+value, is
+log(1=pi)
+log(1=p0)=e (
+s)c
+; wherei=Zv0
+vi1
+1 +jzjdz: (3)
+Here when the value v0of the best move and viof thei-th move have the same sign,
+the integral giving the scaled difference simpliﬁes to jlog(1 +v0) log(1 +vi)j. Note
+that this employs the empirically-determined scaling law from the last section.
+The skill parameters are called sfor “sensitivity” and cfor “consistency” because
+swhen small can enlarge small differences in value, while cwhen large sharply cuts
