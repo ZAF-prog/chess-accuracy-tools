@@ -1,0 +1,28 @@
+1)
+Review the uploaded PDFs, for the algorithms described.
+Extract every mathematical variable defined, and create a dictionary mapping them to their definitions.
+Make sure all formulas are transcribed, and the details of parameter estimation are provided.
+Use Python syntax for the expressions, rather than Latex.
+Write a concise but precise specification, sufficient for software implementation.
+Include comments, and explanation for the data used.
+
+	___
+	Review the text of 2 articles below (extracted from PDFs), for the algorithms described.
+Extract every mathematical variable defined, and create a dictionary mapping them to their definitions.
+Make sure all formulas are transcribed, and the details of parameter estimation are provided.
+Use Python syntax for the expressions, rather than Latex.
+Write a concise but precise specification, sufficient for software implementation.
+Include comments, and explanation for the data used.
+	...
+
+2) Explain the step-by-step logic of a program needed for the algorithm specified above.
+3) Write a Python implementation of the above, using pychess, NumPy, sci-kit.
+Run Stockfish as the chess engine, making sure persistent mode is utilized to minimize
+overhead due to re-initializations for the many calls necessary.
+ Distribute as large hash memory as possible, taking 80% of system total available.
+Optimize performance with multi-core CPU workers, taking 60% of total system computing power.
+Enable restarting with pickle files.
+ The program takes PGN file as input (filename from commandline), with narrow range of Elo values.
+ Output is CSV file, with name from basename of the input.
+ Columns in output:
+ filename,MULTI_PV,Number_Games,Number_Moves,MinElo,MaxElo,AvgElo,s,c,AE_e,FirstYear,LastYear
