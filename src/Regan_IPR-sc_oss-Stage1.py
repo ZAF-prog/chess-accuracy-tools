@@ -3,6 +3,8 @@ import argparse
 import csv
 import os
 import pickle
+#import platformengin
+import platform
 import sys
 from pathlib import Path
 
@@ -35,6 +37,17 @@ def get_num_cores(default_cores=4):
         return multiprocessing.cpu_count()
     except Exception:
         return default_cores
+
+
+def get_default_engine_path():
+    """Determines default Stockfish path based on OS."""
+    system = platform.system()
+    if system == "Windows":
+        # Adjust this path to your actual Stockfish location
+        return Path(r"C:\Users\Public\Libraries\stockfish\stockfish-windows-x86-64-avx2.exe")
+    elif system in ("Linux", "Darwin"):
+        return Path("stockfish")  # Assumes 'stockfish' is in PATH
+    return Path("stockfish")
 
 
 # ----------------------------------------------------------
@@ -274,8 +287,8 @@ def load_checkpoint(checkpoint_path):
 def main():
     parser = argparse.ArgumentParser(description="Fit s and c parameters from PGN using Stockfish evaluations.")
     parser.add_argument("pgn_file", help="Input PGN file")
-    parser.add_argument("--engine", default="stockfish", help="Path to Stockfish binary")
-    parser.add_argument("--multipv", type=int, default=1, help="MultiPV setting for Stockfish")
+    parser.add_argument("--engine", default=get_default_engine_path(), help="Path to Stockfish binary")
+    parser.add_argument("--multipv", type=int, default=20, help="MultiPV setting for Stockfish")
     parser.add_argument("--elo-min", type=int, default=None, help="Minimum average Elo")
     parser.add_argument("--elo-max", type=int, default=None, help="Maximum average Elo")
     parser.add_argument("--max-games", type=int, default=None, help="Max number of games to process")
@@ -435,3 +448,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
