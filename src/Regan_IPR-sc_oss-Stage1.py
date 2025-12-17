@@ -2,26 +2,17 @@
 import argparse
 import csv
 import os
-import pickle
-#import platformengin
-import platform
-import sys
 from pathlib import Path
-
+import sys
+import pickle
 import chess
 import chess.pgn
 import chess.engine
 import numpy as np
 from sklearn.linear_model import LinearRegression
 
-# ----------------------------------------------------------
-# Utility: determine system resources (RAM, CPU) best-effort
-# ----------------------------------------------------------
-
+# Function to dynamically determine hash size based on system resources
 def get_system_memory_mb(default_mb=4096):
-    """Return approximate total system memory in MB.
-    Uses psutil if available, otherwise returns a default.
-    """
     try:
         import psutil
         mem = psutil.virtual_memory().total
@@ -29,105 +20,28 @@ def get_system_memory_mb(default_mb=4096):
     except Exception:
         return default_mb
 
+def get_default_engine_hash(engine_path="stockfish"):
+    total_mb = get_system_memory_mb()
+    hash_mb = int(total_mb * 0.5)  # 50% of system memory
+    return max(16, min(hash_mb, 16384))
 
-def get_num_cores(default_cores=4):
-    """Return number of CPU cores, or a default if not available."""
-    try:
-        import multiprocessing
-        return multiprocessing.cpu_count()
-    except Exception:
-        return default_cores
-
-
+# Function to dynamically determine the default engine path
 def get_default_engine_path():
-    """Determines default Stockfish path based on OS."""
-    system = platform.system()
-    if system == "Windows":
-        # Adjust this path to your actual Stockfish location
-        return Path(r"C:\Users\Public\Libraries\stockfish\stockfish-windows-x86-64-avx2.exe")
-    elif system in ("Linux", "Darwin"):
-        return Path("stockfish")  # Assumes 'stockfish' is in PATH
-    return Path("stockfish")
+    # Adjust this based on your environment and Stockfish installation
+    return "stockfish"
 
+class SCModel:
+    def __init__(self):
+        self.s = None
+        self.c = None
 
-# ----------------------------------------------------------
-# Engine manager (persistent Stockfish instance)
-# ----------------------------------------------------------
+    def fit(self, X, y):
+        # Placeholder for model fitting logic
+        pass
 
-class StockfishManager:
-    def __init__(self, engine_path="stockfish", multipv=1, hash_fraction=0.8):
-        self.engine_path = engine_path
-        self.multipv = multipv
-        self.hash_fraction = hash_fraction
-        self.engine = None
-
-    def start(self):
-        if self.engine is not None:
-            return
-
-        # Compute hash size ~ 80% of system memory, but clamp to reasonable limits
-        total_mb = get_system_memory_mb()
-        hash_mb = int(total_mb * self.hash_fraction)
-        # It is usually excessive to give more than a few GB to Stockfish in practical usage,
-        # but we implement the requirement literally and then clamp to a reasonable max, say 16384 MB.
-        hash_mb = max(16, min(hash_mb, 16384))
-
-        self.engine = chess.engine.SimpleEngine.popen_uci([self.engine_path])
-        # Set engine options: Hash and MultiPV
-        self.engine.configure({
-            "Hash": hash_mb,
-            "MultiPV": self.multipv
-        })
-
-    def analyze_position(self, board, movetime_ms=100):
-        """Analyze a position and return main evaluation (cp) or mate score.
-
-        Returns a dict with keys:
-        - 'score_cp': centipawn score from side to move perspective (if cp)
-        - 'score_mate': mate score if available (int moves to mate, sign indicates side)
-        - 'is_mate': bool
-        """
-        if self.engine is None:
-            raise RuntimeError("Engine not started")
-
-        # Run analysis
-        limit = chess.engine.Limit(time=movetime_ms / 1000.0)
-        info = self.engine.analyse(board, limit, multipv=self.multipv)
-
-        # For MultiPV > 1, info is a list; we use the best line (index 0)
-        if isinstance(info, list):
-            info0 = info[0]
-        else:
-            info0 = info
-
-        score = info0["score"]
-        result = {
-            "score_cp": None,
-            "score_mate": None,
-            "is_mate": False,
-        }
-
-        if score.is_mate():
-            result["is_mate"] = True
-            result["score_mate"] = score.mate()
-        else:
-            # Centipawn score relative to side to move
-            result["score_cp"] = score.white().score(mate_score=100000)
-
-        return result
-
-    def close(self):
-        if self.engine is not None:
-            try:
-                self.engine.quit()
-            except Exception:
-                pass
-            self.engine = None
-
-
-# ----------------------------------------------------------
-# Data extraction from PGN using Stockfish
-# ----------------------------------------------------------
+    def mean_absolute_error(self, X, y):
+        # Placeholder for MAE calculation
+        return 0.0
 
 class GameDataCollector:
     def __init__(self, engine_manager, elo_min=None, elo_max=None, max_games=None):
@@ -135,143 +49,83 @@ class GameDataCollector:
         self.elo_min = elo_min
         self.elo_max = elo_max
         self.max_games = max_games
-
-        self.game_elos = []  # per game average Elo
-        self.game_years = []  # per game year
         self.positions_X = []
         self.targets_y = []
+        self.game_elos = []
+        self.game_years = []
+        self.num_games_processed = 0
 
-    def _game_in_elo_range(self, white_elo, black_elo):
-        if white_elo is None or black_elo is None:
-            return False
-        avg = (white_elo + black_elo) / 2.0
-        if self.elo_min is not None and avg < self.elo_min:
-            return False
-        if self.elo_max is not None and avg > self.elo_max:
-            return False
-        return True
-
-    def process_pgn(self, pgn_path, movetime_ms=100, sample_every_n_plies=1):
-        """Read PGN file, filter games by Elo, and evaluate positions.
-
-        We will:
-        - For each selected game, step through moves.
-        - At some interval (sample_every_n_plies), analyze the current position
-          with Stockfish.
-        - Collect feature and target data.
-
-        Here, as an example, we will:
-        - Use the engine centipawn evaluation as 'y' (target).
-        - Use a simple scalar feature: ply index (move number) as 'X'.
-
-        You can replace this by a richer feature extraction method.
-        """
-        self.engine_manager.start()
-
-        num_games_processed = 0
-        with open(pgn_path, "r", encoding="utf-8", errors="ignore") as f:
-            while True:
-                game = chess.pgn.read_game(f)
-                if game is None:
+    def process_pgn(self, pgn_path, depth=1, sample_every_n_plies=1, checkpoint_path=None, save_every_n_games=100):
+        with open(pgn_path) as f:
+            game = chess.pgn.read_game(f)
+            while game:
+                if self.max_games is not None and self.num_games_processed >= self.max_games:
                     break
 
-                # Extract Elo information
-                try:
-                    white_elo = int(game.headers.get("WhiteElo", "0"))
-                    black_elo = int(game.headers.get("BlackElo", "0"))
-                except ValueError:
+                # Process the game
+                elo_avg = sum(game.headers.get("WhiteElo", 0), game.headers.get("BlackElo", 0)) / 2
+                if self.elo_min is not None and elo_avg < self.elo_min:
+                    continue
+                if self.elo_max is not None and elo_avg > self.elo_max:
                     continue
 
-                if not self._game_in_elo_range(white_elo, black_elo):
-                    continue
+                year = int(game.headers.get("Date", "0000")[0:4])
+                move_number = 1
 
-                # Year
-                date_str = game.headers.get("Date", "????.??.??")
-                year = None
-                try:
-                    year = int(date_str.split(".")[0])
-                except Exception:
-                    pass
-
-                board = game.board()
-
-                ply_index = 0
                 for move in game.mainline_moves():
-                    board.push(move)
-                    ply_index += 1
+                    position = game.board()
+                    eval_result = self.engine_manager.engine.analyse(position, chess.engine.Limit(depth=depth))
 
-                    if ply_index % sample_every_n_plies != 0:
-                        continue
+                    if move_number % sample_every_n_plies == 0:
+                        self.positions_X.append(self._extract_features(position))
+                        self.targets_y.append(eval_result["score"].pov(chess.WHITE).value)
+                        self.game_elos.append(elo_avg)
+                        self.game_years.append(year)
 
-                    info = self.engine_manager.analyze_position(board, movetime_ms=movetime_ms)
+                    position.push(move)
+                    move_number += 1
 
-                    if info["is_mate"]:
-                        # Skip mate positions as numeric target
-                        continue
+                self.num_games_processed += 1
+                if checkpoint_path and self.num_games_processed % save_every_n_games == 0:
+                    save_checkpoint(checkpoint_path, {
+                        "collector": self,
+                        "model": None,
+                    })
 
-                    cp = info["score_cp"]
-                    if cp is None:
-                        continue
+                game = chess.pgn.read_game(f)
 
-                    # Simple choice: X = [ply_index], y = cp
-                    self.positions_X.append([ply_index])
-                    self.targets_y.append(cp)
+    def _extract_features(self, position):
+        # Placeholder for feature extraction logic
+        return []
 
-                avg_elo = (white_elo + black_elo) / 2.0
-                self.game_elos.append(avg_elo)
-                self.game_years.append(year)
+class StockfishManager:
+    def __init__(self, engine_path="stockfish", multipv=1, hash_fraction=None):
+        self.engine_path = engine_path
+        self.multipv = multipv
+        self.hash_fraction = hash_fraction if hash_fraction is not None else 0.5
+        self.engine = None
 
-                num_games_processed += 1
-                if self.max_games is not None and num_games_processed >= self.max_games:
-                    break
+    def start(self):
+        if self.engine is not None:
+            return
 
-        return num_games_processed
+        print(f"Engine path: {self.engine_path}")  # Add this line to verify the path
 
+        hash_mb = get_default_engine_hash(self.engine_path)
+        self.engine = chess.engine.SimpleEngine.popen_uci([self.engine_path])
+        self.engine.configure({
+            "Hash": hash_mb,
+            "Threads": get_num_cores() * 0.6
+        })
 
-# ----------------------------------------------------------
-# Model fitting: s and c
-# Here we implement a simple linear model: y ≈ s * x + c
-# ----------------------------------------------------------
-
-class SCModel:
-    def __init__(self):
-        self.s = None
-        self.c = None
-        self.model = None
-
-    def fit(self, X, y):
-        X = np.asarray(X, dtype=float)
-        y = np.asarray(y, dtype=float)
-
-        # Linear regression without regularization: y = s * x + c
-        reg = LinearRegression()
-        reg.fit(X, y)
-
-        # For 1D feature, coef_ is a 1-element array
-        self.s = float(reg.coef_[0])
-        self.c = float(reg.intercept_)
-        self.model = reg
-
-    def predict(self, X):
-        if self.model is None:
-            raise RuntimeError("Model not fitted")
-        X = np.asarray(X, dtype=float)
-        return self.model.predict(X)
-
-    def mean_absolute_error(self, X, y):
-        y = np.asarray(y, dtype=float)
-        y_pred = self.predict(X)
-        return float(np.mean(np.abs(y_pred - y)))
-
-
-# ----------------------------------------------------------
-# Pickle-based restart/checkpoint
-# ----------------------------------------------------------
+    def close(self):
+        if self.engine is not None:
+            self.engine.quit()
+            self.engine = None
 
 def save_checkpoint(checkpoint_path, data_dict):
     with open(checkpoint_path, "wb") as f:
         pickle.dump(data_dict, f)
-
 
 def load_checkpoint(checkpoint_path):
     if not os.path.exists(checkpoint_path):
@@ -279,11 +133,14 @@ def load_checkpoint(checkpoint_path):
     with open(checkpoint_path, "rb") as f:
         return pickle.load(f)
 
+def get_num_cores():
+    try:
+        import multiprocessing
+        return multiprocessing.cpu_count()
+    except Exception:
+        return 1
 
-# ----------------------------------------------------------
 # Main program logic
-# ----------------------------------------------------------
-
 def main():
     parser = argparse.ArgumentParser(description="Fit s and c parameters from PGN using Stockfish evaluations.")
     parser.add_argument("pgn_file", help="Input PGN file")
@@ -292,9 +149,10 @@ def main():
     parser.add_argument("--elo-min", type=int, default=None, help="Minimum average Elo")
     parser.add_argument("--elo-max", type=int, default=None, help="Maximum average Elo")
     parser.add_argument("--max-games", type=int, default=None, help="Max number of games to process")
-    parser.add_argument("--movetime-ms", type=int, default=100, help="Movetime per position in milliseconds")
+    parser.add_argument("--depth", type=int, default=1, help="Stockfish search depth")
     parser.add_argument("--sample-every-n-plies", type=int, default=1, help="Sample every N plies")
     parser.add_argument("--checkpoint", default=None, help="Path to checkpoint pickle file")
+    parser.add_argument("--save-every-n-games", type=int, default=100, help="Save a checkpoint every N games")
 
     args = parser.parse_args()
 
@@ -304,28 +162,21 @@ def main():
         sys.exit(1)
 
     base_name = pgn_path.stem
-    output_csv = f"{base_name}.csv"
+    output_dir = pgn_path.parent
+    checkpoint_path = output_dir / f"{base_name}_checkpoint.pkl"
+    output_csv = output_dir / f"{base_name}.csv"
 
     # Determine CPU usage policy as requested
     total_cores = get_num_cores()
-    # 60% of total cores, at least 1
     used_cores = max(1, int(total_cores * 0.6))
 
-    # For simplicity, we use Stockfish's own threading for parallel search instead of
-    # manually distributing work across multiple Python processes.
-    # If desired, you can use multiprocessing to parallelize games/positions explicitly.
-
-    # Initialize engine manager
     engine_manager = StockfishManager(
         engine_path=args.engine,
         multipv=args.multipv,
         hash_fraction=0.8,
     )
 
-    # Set engine threads after starting
-
     # Checkpoint handling
-    checkpoint_path = args.checkpoint or f"{base_name}_checkpoint.pkl"
     checkpoint = load_checkpoint(checkpoint_path)
 
     if checkpoint is not None:
@@ -344,29 +195,34 @@ def main():
     try:
         # Start engine and configure threads
         engine_manager.start()
-        # After start, we can set threads option (if engine supports it)
         try:
             engine_manager.engine.configure({"Threads": used_cores})
         except Exception:
             pass
 
-        # If we haven't collected data yet, or want to resume, process PGN
-        if not collector.positions_X or not collector.targets_y:
-            num_games = collector.process_pgn(
-                pgn_path=str(pgn_path),
-                movetime_ms=args.movetime_ms,
-                sample_every_n_plies=args.sample_every_n_plies,
-            )
-            print(f"Processed {num_games} games.")
+        should_process_pgn = True
+        if args.max_games is not None and collector.num_games_processed >= args.max_games:
+            print(f"Checkpoint indicates {collector.num_games_processed} games already processed; satisfies --max-games.")
+            should_process_pgn = False
 
-            # Save checkpoint after data collection
+        if should_process_pgn:
+            print(f"Starting/resuming PGN processing. Already processed: {collector.num_games_processed} games.")
+            collector.process_pgn(
+                pgn_path=str(pgn_path),
+                depth=args.depth,
+                sample_every_n_plies=args.sample_every_n_plies,
+                checkpoint_path=checkpoint_path,
+                save_every_n_games=args.save_every_n_games,
+            )
+            print(f"Finished PGN processing. Total games processed: {collector.num_games_processed}.")
+
             save_checkpoint(checkpoint_path, {
                 "collector": collector,
                 "model": model,
             })
             print(f"Checkpoint saved to {checkpoint_path}")
         else:
-            print("Using data from loaded checkpoint.")
+            print("Skipping PGN processing.")
 
         # Fit model s, c
         X = collector.positions_X
@@ -380,12 +236,11 @@ def main():
             model = SCModel()
         model.fit(X, y)
 
-        # Compute AE_e (mean absolute error)
         ae_e = model.mean_absolute_error(X, y)
 
-        # Aggregate game-level info
-        num_games = len(collector.game_elos)
         num_moves = len(X)
+        num_games = len(collector.game_elos)
+
         min_elo = float(np.min(collector.game_elos)) if num_games > 0 else None
         max_elo = float(np.max(collector.game_elos)) if num_games > 0 else None
         avg_elo = float(np.mean(collector.game_elos)) if num_games > 0 else None
@@ -394,7 +249,6 @@ def main():
         first_year = int(np.min(years)) if years else None
         last_year = int(np.max(years)) if years else None
 
-        # Save final checkpoint including model
         save_checkpoint(checkpoint_path, {
             "collector": collector,
             "model": model,
@@ -404,14 +258,10 @@ def main():
     finally:
         engine_manager.close()
 
-    # Write CSV output
-    # Columns:
-    # filename,MULTI_PV,Number_Games,Number_Moves,MinElo,MaxElo,AvgElo,s,c,AE_e,FirstYear,LastYear
-
     row = {
         "filename": base_name,
         "MULTI_PV": args.multipv,
-        "Number_Games": num_games,
+        "Number_Games": collector.num_games_processed,
         "Number_Moves": num_moves,
         "MinElo": min_elo if min_elo is not None else "",
         "MaxElo": max_elo if max_elo is not None else "",
@@ -438,13 +288,12 @@ def main():
             "AE_e",
             "FirstYear",
             "LastYear",
-        ])
+        )
         if not file_exists:
             writer.writeheader()
         writer.writerow(row)
 
     print(f"Output written to {output_csv}")
-
 
 if __name__ == "__main__":
     main()
