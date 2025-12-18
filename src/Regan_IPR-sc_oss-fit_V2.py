@@ -492,7 +492,7 @@ def main():
     parser.add_argument(
         "--multipv",
         type=int,
-        default=5,
+        default=20,
         help="Number of moves to consider (MultiPV). Also used as max_moves.",
     )
     parser.add_argument(
