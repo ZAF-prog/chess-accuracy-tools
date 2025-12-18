@@ -1,0 +1,8 @@
+ 40K data/LumbrasGigabase_OTB_ELO~2200_HalfMoves40-Date2006.01.01-2009.12.31_MinGames=3.pgn
+ 56K data/LumbrasGigabase_OTB_ELO~2600_HalfMoves40-Date2006.01.01-2009.12.31_MinGames=4.pgn
+ 64K data/LumbrasGigabase_OTB_ELO~2400_HalfMoves40-Date2006.01.01-2009.12.31_MinGames=4.pgn
+ 76K data/LumbrasGigabase_OTB_ELO~2150_HalfMoves40-Date2006.01.01-2009.12.31_MinGames=3.pgn
+ 76K data/LumbrasGigabase_OTB_ELO~2300_HalfMoves40-Date2006.01.01-2009.12.31_MinGames=3.pgn
+ 80K data/LumbrasGigabase_OTB_ELO~2700_HalfMoves40-Date2006.01.01-2009.12.31_MinGames=5.pgn
+ 80K data/LumbrasGigabase_OTB_ELO~2750_HalfMoves40-Date2006.01.01-2009.12.31_MinGames=15.pgn
+140K data/LumbrasGigabase_OTB_ELO~2500_HalfMoves40-Date2006.01.01-2009.12.31_MinGames=3.pgn
