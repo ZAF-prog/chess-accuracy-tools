@@ -455,15 +455,18 @@ def fit_parameters_hybrid(
 
 def save_summary_csv(data: dict, path: Path):
     """
-    Saves summary data to a CSV file.
+    Saves summary data to a CSV file, appending if the file already exists.
 
     Args:
         data: A dictionary containing the summary data.
         path: The path to the output CSV file.
     """
-    with open(path, "w", newline="", encoding="utf-8") as f:
+    file_exists = path.is_file()
+
+    with open(path, "a", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=list(data.keys()))
-        writer.writeheader()
+        if not file_exists:
+            writer.writeheader()  # Write header only if file is new
         writer.writerow(data)
 
 
