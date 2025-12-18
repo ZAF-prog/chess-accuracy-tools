@@ -517,6 +517,12 @@ def main():
         action="store_true",
         help="Enable verbose logging.",
     )
+    parser.add_argument(
+        "--output_name",
+        type=str,
+        default=None,
+        help="Custom name for the output CSV file (without extension).",
+    )
 
     args = parser.parse_args()
 
@@ -602,8 +608,17 @@ def main():
     # -----------------------------------------------------------------
     # Write CSV summary
     # -----------------------------------------------------------------
-    output_basename = Path(f"{pgn_path.stem}_IPR_s,c-fit")
-    csv_path = output_basename.with_suffix(".csv")
+    # Ensure the output directory exists
+    output_dir = Path("data")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Determine output filename
+    if args.output_name:
+        output_basename = Path(args.output_name)
+    else:
+        output_basename = Path(f"{pgn_path.stem}_IPR_s,c-fit")
+    
+    csv_path = output_dir / output_basename.with_suffix(".csv")
 
     save_summary_csv(summary_data, csv_path)
     print(f"Summary saved to {csv_path}")
