@@ -1,0 +1,3 @@
+Processing all valid games from PGN file (no ELO filter applied).
+Created 6749 training positions from 95 games.
+Summary saved to data/_MinGames=~Stage1_V2-multipv_20.csv
