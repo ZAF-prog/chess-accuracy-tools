@@ -27,7 +27,7 @@ def get_default_engine_path():
 # =============================================================================
 # PHASE 1: DATA COLLECTION AND PREPROCESSING
 # =============================================================================
-def analyze_game_with_engine(game, engine, depth, multipv, move_start=8, pawn_cutoff=300):
+def analyze_game_with_engine(game, engine, depth, multipv, timeout, verbose, move_start=8, pawn_cutoff=300):
     positions = []
     board = game.board()
     
@@ -35,20 +35,32 @@ def analyze_game_with_engine(game, engine, depth, multipv, move_start=8, pawn_cu
         if move_number < move_start:
             board.push(move)
             continue
+        
+        if verbose and move_number > move_start and move_number % 5 == 0:
+            print(f"    ... analyzing move {move_number}")
 
         try:
-            analysis = engine.analyse(board, chess.engine.Limit(depth=depth), multipv=multipv)
+            # CRITICAL: Added timeout to the analysis limit
+            limit = chess.engine.Limit(depth=depth, time=timeout)
+            analysis = engine.analyse(board, limit, multipv=multipv)
+            
+            if not analysis:
+                print(f"Skipping position at move {move_number}: No analysis returned.")
+                board.push(move)
+                continue
+
             best_eval_cp = analysis[0]['score'].pov(board.turn).score(mate_score=10000)
             if abs(best_eval_cp) > pawn_cutoff or board.is_repetition(2):
                 board.push(move)
                 continue
 
             positions.append({
-                'move_evals': {info['pv'][0]: info['score'].pov(board.turn).score(mate_score=10000) for info in analysis},
+                'move_evals': {info['pv'][0]: info['score'].pov(board.turn).score(mate_score=10000) for info in analysis if 'pv' in info and info['pv']},
                 'move_played': move,
             })
-        except (chess.engine.EngineError, IndexError) as e:
-            print(f"Skipping position due to engine error: {e}")
+        # CRITICAL: Catch TimeoutError to prevent hangs
+        except (chess.engine.EngineError, chess.engine.TimeoutError, IndexError) as e:
+            print(f"Skipping position at move {move_number} due to error: {e}")
         
         board.push(move)
         
@@ -82,7 +94,7 @@ def create_spread_vector(position_data, max_moves):
     played_index = move_to_index.get(position_data['move_played'], -1)
     return {'spread': spread, 'played_index': played_index} if played_index != -1 else None
 
-def build_training_dataset(pgn_path, engine, max_games, depth, multipv):
+def build_training_dataset(pgn_path, engine, max_games, depth, multipv, timeout, verbose):
     """
     Analyzes all valid games from a PGN file without any ELO filtering.
     """
@@ -99,11 +111,11 @@ def build_training_dataset(pgn_path, engine, max_games, depth, multipv):
             year_str = game.headers.get("Date", "1970.01.01")
             year = int(year_str.split('.')[0])
 
-            # Skip games with missing ELO data, but do not filter by range
             if white_elo == 0 or black_elo == 0:
                 continue
             
-            positions = analyze_game_with_engine(game, engine, depth, multipv)
+            print(f"Processing game {stats['num_games'] + 1} ({game.headers.get('White', '?')} vs {game.headers.get('Black', '?')})...")
+            positions = analyze_game_with_engine(game, engine, depth, multipv, timeout, verbose)
             
             if positions:
                 stats["num_games"] += 1
@@ -200,9 +212,11 @@ if __name__ == "__main__":
     parser.add_argument("--engine", type=str, default=get_default_engine_path(), help="Path to UCI engine.")
     parser.add_argument("--depth", type=int, default=15, help="Engine analysis depth.")
     parser.add_argument("--multipv", type=int, default=20, help="Engine Multi-PV setting.")
+    parser.add_argument("--move_timeout", type=float, default=20.0, help="Timeout in seconds for a single move analysis.")
     parser.add_argument("--max_games", type=int, default=None, help="Max games to process.")
     parser.add_argument("--output_dir", type=str, default=None, help="Output directory.")
     parser.add_argument("--use_cache", action="store_true", help="Use cached pre-processed data if available.")
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose logging for move-by-move progress.")
     args = parser.parse_args()
 
     input_path = Path(args.pgn_path)
@@ -222,7 +236,9 @@ if __name__ == "__main__":
             engine=engine, 
             max_games=args.max_games, 
             depth=args.depth, 
-            multipv=args.multipv
+            multipv=args.multipv,
+            timeout=args.move_timeout,
+            verbose=args.verbose
         )
         engine.quit()
         
