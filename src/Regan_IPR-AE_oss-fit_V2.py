@@ -144,22 +144,41 @@ def build_reference_dataset(
     print("Processing reference PGN to generate spread vectors...")
     
     # --- Resource Calculation ---
-    # Automatically configure parallel workers and memory based on system specs.
-    if psutil:
-        total_mem_gb = psutil.virtual_memory().total / (1024**3)
+    # Automatically configure parallel workers and memory based on system specs,
+    # unless manually overridden by the user.
+    if args.num_workers and args.hash_mb_per_worker:
+        num_workers = args.num_workers
+        hash_per_worker = args.hash_mb_per_worker
+        if verbose:
+            print("Using manual resource settings:")
+            print(f"  Workers: {num_workers}, Hash per worker: {hash_per_worker} MB")
+    elif psutil:
+        # --- Automatic Calculation ---
+        available_mem_gb = psutil.virtual_memory().available / (1024**3)
         num_cpus = os.cpu_count() or 1
+        
         # Use 80% of available cores for worker processes.
         num_workers = max(1, int(num_cpus * 0.8))
-        # Allocate 60% of total system memory for engine hash, divided among workers.
-        total_hash_mb = int((total_mem_gb * 0.6) * 1024)
+        
+        # Allocate a safer 50% of available system memory for engine hash, divided among workers.
+        total_hash_mb = int((available_mem_gb * 0.5) * 1024)
         hash_per_worker = max(16, total_hash_mb // num_workers)
         
+        # Add a "safety cap" to prevent excessive allocation on high-RAM systems.
+        # It's rarely efficient to give a single Stockfish instance more than 16GB hash.
+        HASH_CAP_MB = 16 * 1024
+        if hash_per_worker > HASH_CAP_MB:
+            if verbose:
+                print(f"Capping hash per worker from {hash_per_worker}MB to {HASH_CAP_MB}MB for efficiency.")
+            hash_per_worker = HASH_CAP_MB
+        
         if verbose:
-            print(f"System Info: {num_cpus} CPUs, {total_mem_gb:.1f} GB RAM")
-            print(f"Using {num_workers} worker processes with {hash_per_worker} MB hash each.")
+            print("Using automatic resource settings:")
+            print(f"  System Info: {num_cpus} CPUs, {available_mem_gb:.1f} GB available RAM")
+            print(f"  Using {num_workers} worker processes with {hash_per_worker} MB hash each.")
     else:
-        print("Warning: psutil not found. Using default 4 workers and 256MB hash.")
-        num_workers = 4
+        print("Warning: psutil not found and no manual settings provided. Using safe defaults.")
+        num_workers = 2
         hash_per_worker = 256
 
     # --- PGN Splitting for Workers ---
@@ -261,6 +280,8 @@ def main():
     parser.add_argument("--timeout", type=float, default=0.5, help="Engine time limit per move.")
     parser.add_argument("--use_cache", action="store_true", help="Use/create pickle cache for reference PGN analysis.")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logging.")
+    parser.add_argument("--num_workers", type=int, default=None, help="Manually set the number of worker processes.")
+    parser.add_argument("--hash_mb_per_worker", type=int, default=None, help="Manually set hash memory in MB for each engine.")
     args = parser.parse_args()
 
     # --- Load pre-fitted s,c data ---
