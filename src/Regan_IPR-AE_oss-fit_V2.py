@@ -15,7 +15,7 @@ import chess.engine
 import numpy as np
 import pandas as pd
 from scipy.integrate import quad
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 try:
     import psutil
@@ -196,26 +196,33 @@ def build_reference_dataset(
     reference_spreads = []
 
     # --- Parallel Processing ---
-    # A ProcessPoolExecutor manages the pool of worker processes.
-    # The 'partial' function creates a callable with fixed arguments for the
-    # engine configuration, which is then passed to each worker.
+    # Create a partial function to pass fixed arguments to the worker.
     worker_func = partial(
         analyze_game_worker,
         engine_path=engine_path, depth=depth, multipv=multipv,
         timeout=timeout, hash_mb=hash_per_worker
     )
     
-    # The executor's 'map' function efficiently distributes the game_texts
-    # to the worker pool and collects the results as they are completed.
     with ProcessPoolExecutor(max_workers=num_workers) as executor:
-        results = executor.map(worker_func, game_texts)
-        for i, game_spreads in enumerate(results):
-            if verbose and (i + 1) % 20 == 0:
-                print(f"  ... processed {i + 1}/{len(game_texts)} games.")
-            if game_spreads:
-                reference_spreads.extend(game_spreads)
+        # Use executor.submit to get a "future" for each task. This allows us
+        # to process results as they are completed, not in submission order.
+        futures = [executor.submit(worker_func, game_text) for game_text in game_texts]
+        
+        # Use as_completed to get results as soon as they are ready,
+        # providing more responsive feedback to the user.
+        for i, future in enumerate(as_completed(futures)):
+            try:
+                game_spreads = future.result()
+                if game_spreads:
+                    reference_spreads.extend(game_spreads)
+            except Exception as e:
+                if verbose:
+                    print(f"A worker process failed with an error: {e}")
 
-    print(f"Created {len(reference_spreads)} reference positions from {len(game_texts)} games.")
+            if verbose and (i + 1) % 5 == 0: # More frequent updates
+                print(f"  ... processed {i + 1}/{len(game_texts)} games.")
+
+    print(f"\nCreated {len(reference_spreads)} reference positions from {len(game_texts)} games.")
     return reference_spreads
 
 
