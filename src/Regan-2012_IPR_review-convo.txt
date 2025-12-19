@@ -1,0 +1,87 @@
+	(2025-12-19 04:32) :
+ Review the uploaded PDF. Pay special attention to these two paragraphs:
+>>
+Here we take a more direct route by computing from any (s, c) a single value that
+corresponds to an Elo rating. The value is the expected error per move on the union of
+the training sets. We denote it by AE e , and note that it, the expected number MM e of
+matches to the computer’s ﬁrst-listed move, and projected standard deviations for these
+two quantities, are given by these formulas:
+MM e = P
+T
+t=1
+p 0.t , σ MM e
+=
+q
+P
+T
+t=1
+p 0,t (1 − p 0,t )
+AE e =
+1
+T
+P
+T
+t=1
+P
+i≥1
+p i,t δ i,t , σ AE e
+=
+q
+1
+T
+P
+T
+t=1
+P
+i≥1
+p i,t (1 − p i,t )δ i,t .
+(5)
+The ﬁrst table gives the values of AE e that were obtained by ﬁrst ﬁtting the training data
+for 2006–09, to obtain s, c, then computing the expectation for the union of the training
+sets. It was found that a smaller set R of moves comprising the games of the 2005 and
+2007 world championship tournaments and the 2006 world championship match gave
+identical results to the fourth decimal place, so R was used as the ﬁxed reference set.
+<<
+ 
+What does " the union of the training sets" refer to, here??
+
+on_message (2025-12-19 04:32) :
+
+
+	(2025-12-19 04:32) :
+In this context, 'the union of the training sets' refers to the combined collection of all chess moves from multiple training datasets that were created for different Elo rating levels across different time periods. Specifically, the paper describes creating training sets for each Elo century mark (2700, 2600, 2500, etc.) using games from three different time periods: 2006-2009, 1991-1994, and 1976-1979. Each training set comprises games where both players were rated within 10 points of a specific Elo century mark. The 'union' means all these individual training sets are combined together into one large reference dataset. This combined dataset is then used to compute the expected error per move (AEe) for any given skill parameters (s, c). The paper notes that they found a smaller reference set R (comprising games from the 2005 and 2007 world championship tournaments and the 2006 world championship match) gave identical results to the fourth decimal place, so this smaller set R was used as the fixed reference set instead of the full union.
+
+Sources: source_0, source_1
+
+	(2025-12-19 04:34) :
+ Do a more thorough analysis, with chain-of-thought steps detailed, and explain specifically how this parameter estimation was performed.
+
+on_message (2025-12-19 04:34) :
+
+
+	(2025-12-19 04:34) :
+The parameter estimation process works as follows:
+
+**Step 1: Create Training Sets**
+For each Elo century mark (2700, 2600, 2500, 2400, 2300, 2200, etc.), the researchers created training sets comprising games where both players were rated within 10 points of that mark. This was done for three different time periods: 2006-2009, 1991-1994, and 1976-1979. For example, the 2600 training set for 2006-2009 would include all games where both players were rated between 2590-2610.
+
+**Step 2: Fit Skill Parameters (s, c) to Each Training Set**
+For each training set, they performed statistical regression to find the skill parameters s (sensitivity) and c (consistency) that best fit the actual move choices observed in those games. The model uses equation (4): pi = p₀^α where α = e^(-(δ/s)^c), which relates the probability of choosing the i-th move to its scaled value difference δ from the best move. By fitting these probabilities to actual move frequencies in the training data, they obtained specific (s, c) values for each Elo level and time period.
+
+**Step 3: Create the Union Reference Set**
+The 'union of the training sets' means combining all the individual training sets (across all Elo levels and time periods) into one large reference dataset. However, they discovered that a smaller reference set R (games from 2005 and 2007 world championships and 2006 world championship match) gave identical results to four decimal places, so they used this smaller R as the fixed reference set.
+
+**Step 4: Compute Expected Error (AEe) on Reference Set**
+For any given (s, c) parameters obtained from fitting a training set, they compute the expected average error per move (AEe) on the fixed reference set R using the formula in equation (5). This AEe value becomes the single metric that corresponds to an Elo rating.
+
+**Step 5: Establish Elo-to-AEe Correspondence**
+By fitting the 2006-2009 training data for each Elo century mark, obtaining their (s, c) parameters, and then computing AEe on reference set R, they created Table 1 showing the correspondence between Elo ratings and AEe values (e.g., Elo 2700 → AEe 0.0572, Elo 2600 → AEe 0.0624, etc.).
+
+**Step 6: Create Linear Conversion Formula**
+A simple linear fit to the Elo-AEe correspondence yielded equation (6): IPR = 3571 - 15413 × AEe. This formula allows converting any AEe value (computed from any s, c parameters) directly into an Intrinsic Performance Rating (IPR).
+
+**The Key Insight**: The 'union of training sets' serves as a standardized reference benchmark. By computing expected error on this same reference set for different (s, c) parameters, they can compare skill levels across different time periods and rating levels on a common scale, enabling them to test whether ratings have inflated over time.
+
+Sources: source_0, source_1, source_2, source_3, source_4
+
+Generated 	on 2025-12-19 04:35
