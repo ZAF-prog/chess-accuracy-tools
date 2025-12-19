@@ -128,7 +128,8 @@ def compute_delta(v0: float, vi: float) -> float:
 
 def build_reference_dataset(
     pgn_path: str, engine_path: str, depth: int,
-    multipv: int, timeout: float, verbose: bool
+    multipv: int, timeout: float, verbose: bool,
+    num_workers_manual: int | None, hash_mb_manual: int | None
 ) -> list[list[float]]:
     """
     Analyzes the reference PGN in parallel to create a dataset of spread vectors.
@@ -146,9 +147,9 @@ def build_reference_dataset(
     # --- Resource Calculation ---
     # Automatically configure parallel workers and memory based on system specs,
     # unless manually overridden by the user.
-    if args.num_workers and args.hash_mb_per_worker:
-        num_workers = args.num_workers
-        hash_per_worker = args.hash_mb_per_worker
+    if num_workers_manual and hash_mb_manual:
+        num_workers = num_workers_manual
+        hash_per_worker = hash_mb_manual
         if verbose:
             print("Using manual resource settings:")
             print(f"  Workers: {num_workers}, Hash per worker: {hash_per_worker} MB")
@@ -306,7 +307,8 @@ def main():
         with open(cache_path, "rb") as f: reference_spreads = pickle.load(f)
     else:
         reference_spreads = build_reference_dataset(
-            args.reference_pgn, args.engine_path, args.depth, args.multipv, args.timeout, args.verbose
+            args.reference_pgn, args.engine_path, args.depth, args.multipv, 
+            args.timeout, args.verbose, args.num_workers, args.hash_mb_per_worker
         )
         if args.use_cache:
             if args.verbose: print(f"Saving reference data cache to {cache_path}...")
