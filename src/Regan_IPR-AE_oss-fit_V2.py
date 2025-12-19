@@ -288,6 +288,7 @@ def main():
     parser.add_argument("--timeout", type=float, default=0.5, help="Engine time limit per move.")
     parser.add_argument("--use_cache", action="store_true", help="Use/create pickle cache for reference PGN analysis.")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logging.")
+    parser.add_argument("--smooth", action="store_true", help="Apply linear regression to smooth s and c values before calculation.")
     parser.add_argument("--num_workers", type=int, default=None, help="Manually set the number of worker processes.")
     parser.add_argument("--hash_mb_per_worker", type=int, default=None, help="Manually set hash memory in MB for each engine.")
     args = parser.parse_args()
@@ -301,6 +302,31 @@ def main():
     except FileNotFoundError:
         sys.exit(f"Error: Input CSV file not found at {args.sc_results_csv}")
 
+    # --- (Optional) Smooth s and c parameters ---
+    if args.smooth:
+        print("\nApplying smoothing to s and c parameters...")
+        # Ensure the dataframe is sorted by Elo for sensible regression
+        sc_df = sc_df.sort_values(by="AvgElo").dropna(subset=["s", "c", "AvgElo"])
+        
+        X_elo = sc_df[["AvgElo"]]
+        
+        # Fit s vs. Elo
+        y_s = sc_df["s"]
+        s_fitter = LinearRegression().fit(X_elo, y_s)
+        sc_df["s_smoothed"] = s_fitter.predict(X_elo)
+        
+        # Fit c vs. Elo
+        y_c = sc_df["c"]
+        c_fitter = LinearRegression().fit(X_elo, y_c)
+        sc_df["c_smoothed"] = c_fitter.predict(X_elo)
+
+        s_col, c_col = "s_smoothed", "c_smoothed"
+        if args.verbose:
+            print("Smoothing complete. Using smoothed parameters for AEe calculation.")
+            print(sc_df[['AvgElo', 's', 's_smoothed', 'c', 'c_smoothed']])
+    else:
+        s_col, c_col = "s", "c"
+
     # --- Build or Load Reference Dataset from PGN ---
     # This is the most computationally expensive step. The script analyzes the
     # reference PGN (e.g., world championship games) to create a standardized
@@ -310,7 +336,7 @@ def main():
     # allowing subsequent runs to skip the analysis entirely.
     cache_path = Path(args.reference_pgn).with_suffix(".reference_spreads_cache.pkl")
     if args.use_cache and cache_path.exists():
-        if args.verbose: print(f"Loading cached reference data from {cache_path}...")
+        if args.verbose: print(f"\nLoading cached reference data from {cache_path}...")
         with open(cache_path, "rb") as f: reference_spreads = pickle.load(f)
     else:
         reference_spreads = build_reference_dataset(
@@ -335,8 +361,9 @@ def main():
     ipr_results = []
     for index, row in sc_df.iterrows():
         try:
-            s = float(row["s"])
-            c = float(row["c"])
+            # Use the smoothed or original values depending on the --smooth flag
+            s = float(row[s_col])
+            c = float(row[c_col])
             if s <= 0 or c <= 0:
                 raise ValueError("s and c must be positive")
         except (ValueError, KeyError):
