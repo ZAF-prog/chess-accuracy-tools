@@ -15,6 +15,8 @@ import numpy as np
 import pandas as pd
 from scipy.integrate import quad
 from scipy.optimize import minimize
+import psutil
+from concurrent.futures import ProcessPoolExecutor
 from sklearn.linear_model import LinearRegression
 
 # =============================================================================
@@ -39,6 +41,40 @@ def get_default_engine_path() -> Path:
     elif system in ("Linux", "Darwin"):
         return Path("stockfish")
     return Path("stockfish")
+
+
+# =============================================================================
+# PARALLEL WORKER SETUP
+# =============================================================================
+
+def analyze_game_worker(
+    game_text: str, engine_path: str, depth: int, multipv: int,
+    timeout: float, hash_mb: int
+) -> list[dict]:
+    """
+    A single worker's task: analyze one game from its PGN text.
+    Initializes its own persistent, single-threaded engine instance.
+    """
+    # Each worker gets its own engine instance.
+    engine = chess.engine.SimpleEngine.popen_uci(engine_path)
+    # Configure the engine for this specific worker.
+    engine.configure({"Threads": 1, "Hash": hash_mb})
+    
+    # The python-chess library needs an IO object to read a game.
+    from io import StringIO
+    game = chess.pgn.read_game(StringIO(game_text))
+    
+    results = []
+    if game:
+        # We pass verbose=False because parallel output would be scrambled.
+        positions = analyze_game_with_engine(game, engine, depth, multipv, timeout, verbose=False)
+        for pos_data in positions:
+            spread_data = create_spread_data_for_position(pos_data, multipv)
+            if spread_data:
+                results.append(spread_data)
+    
+    engine.quit()
+    return results
 
 
 # =============================================================================
@@ -133,27 +169,76 @@ def create_spread_data_for_position(position_data: dict, max_moves: int) -> dict
     return {"spread": spread, "played_index": played_index}
 
 def build_reference_dataset(
-    pgn_path: str, engine: chess.engine.SimpleEngine, depth: int,
+    pgn_path: str, engine_path: str, depth: int,
     multipv: int, timeout: float, verbose: bool
 ) -> list[dict]:
-    """Analyzes reference PGN to create a dataset for optimizing 's'."""
-    print("Processing reference PGN for re-optimization dataset...")
-    reference_data = []
+    """
+    Analyzes reference PGN in parallel to create a dataset for optimizing 's'.
     
-    with open(pgn_path, "r", encoding="utf-8", errors="ignore") as f:
-        game_num = 0
-        while game := chess.pgn.read_game(f):
-            game_num += 1
-            if verbose:
-                print(f"Processing game {game_num} ({game.headers.get('White', '?')} vs {game.headers.get('Black', '?')})...")
+    This function sets up a pool of worker processes, each running a dedicated,
+    single-threaded Stockfish instance. It splits the input PGN file by games
+    and distributes the analysis tasks across the workers.
+    """
+    print("Processing reference PGN for re-optimization dataset...")
+    
+    # --- Resource Calculation ---
+    try:
+        total_mem_gb = psutil.virtual_memory().total / (1024**3)
+        num_cpus = os.cpu_count() or 1
+        
+        # Use 80% of available cores for workers.
+        num_workers = max(1, int(num_cpus * 0.8))
+        
+        # Use 60% of total system memory for hash, divided among workers.
+        total_hash_mb = int((total_mem_gb * 0.6) * 1024)
+        hash_per_worker = max(16, total_hash_mb // num_workers)
+        
+        if verbose:
+            print(f"System Info: {num_cpus} CPUs, {total_mem_gb:.1f} GB RAM")
+            print(f"Using {num_workers} worker processes with {hash_per_worker} MB hash each.")
             
-            positions = analyze_game_with_engine(game, engine, depth, multipv, timeout, verbose)
-            for pos_data in positions:
-                spread_data = create_spread_data_for_position(pos_data, multipv)
-                if spread_data:
-                    reference_data.append(spread_data)
+    except (ImportError, ModuleNotFoundError):
+        print("Warning: psutil not found. Using default 4 workers and 256MB hash.")
+        num_workers = 4
+        hash_per_worker = 256
 
-    print(f"Created {len(reference_data)} reference positions from {game_num} games.")
+    # --- PGN Splitting ---
+    # Read the entire PGN and split it into text blocks for each game.
+    # This is more robust for multiprocessing than passing parsed game objects.
+    with open(pgn_path, "r", encoding="utf-8", errors="ignore") as f:
+        full_pgn_text = f.read()
+    
+    # A simple split based on a common PGN game header. Assumes PGNs are well-formed.
+    game_texts = [game_text for game_text in full_pgn_text.split("\n[Event ") if game_text.strip()]
+    # The first game won't have the split string, so we prepend it.
+    if len(game_texts) > 0 and not game_texts[0].startswith("[Event "):
+        game_texts = [f"[Event {text}" for text in game_texts]
+
+    print(f"Found {len(game_texts)} games to analyze.")
+    reference_data = []
+
+    # --- Parallel Processing ---
+    # Create a partial function to pass fixed arguments to the worker.
+    worker_func = partial(
+        analyze_game_worker,
+        engine_path=engine_path,
+        depth=depth,
+        multipv=multipv,
+        timeout=timeout,
+        hash_mb=hash_per_worker
+    )
+    
+    with ProcessPoolExecutor(max_workers=num_workers) as executor:
+        # map() distributes the game_texts to the workers and collects results.
+        results = executor.map(worker_func, game_texts)
+        
+        for i, game_results in enumerate(results):
+            if verbose and (i + 1) % 10 == 0:
+                print(f"  ... processed {i + 1}/{len(game_texts)} games.")
+            if game_results:
+                reference_data.extend(game_results)
+
+    print(f"Created {len(reference_data)} reference positions from {len(game_texts)} games.")
     return reference_data
 
 
@@ -327,13 +412,11 @@ def main():
         if args.verbose: print(f"\nLoading cached reference data from {cache_path}...")
         with open(cache_path, "rb") as f: ref_data_for_s_opt = pickle.load(f)
     else:
-        engine = chess.engine.SimpleEngine.popen_uci([args.engine_path])
-        try:
-            ref_data_for_s_opt = build_reference_dataset(
-                args.reference_pgn, engine, args.depth, args.multipv, args.timeout, args.verbose
-            )
-        finally:
-            engine.quit()
+        # The new build_reference_dataset manages its own engines and parallel processing.
+        # We no longer create a single engine in the main thread.
+        ref_data_for_s_opt = build_reference_dataset(
+            args.reference_pgn, args.engine_path, args.depth, args.multipv, args.timeout, args.verbose
+        )
         if args.use_cache:
             if args.verbose: print(f"Saving reference data cache to {cache_path}...")
             with open(cache_path, "wb") as f: pickle.dump(ref_data_for_s_opt, f)
