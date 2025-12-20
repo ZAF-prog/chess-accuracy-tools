@@ -1,44 +1,41 @@
 #!/usr/bin/env python
 import argparse
+import os
 import pickle
 import platform
-import os
-import sys
+import csv
 from pathlib import Path
-from math import exp, log
-from functools import partial
-from io import StringIO
 
 import chess
 import chess.pgn
 import chess.engine
 import numpy as np
-import pandas as pd
 from scipy.integrate import quad
-from concurrent.futures import ProcessPoolExecutor, as_completed
-from sklearn.linear_model import LinearRegression
-from sklearn.metrics import r2_score
+from math import exp, log
 
-try:
-    import psutil
-except ImportError:
-    psutil = None
+from concurrent.futures import ProcessPoolExecutor
+from scipy.optimize import minimize
+from functools import partial
+import multiprocessing
 
 # =============================================================================
-# CONSTANTS & CONFIG
+# CONSTANTS
 # =============================================================================
 
-# (The IPR formula will be derived at the end of the script based on the new data)
-
-# Engine analysis parameters.
 MATE_SCORE = 10000
 MOVE_START_DEFAULT = 8
 PAWN_CUTOFF_DEFAULT = 300
+DEFAULT_YEAR = 1970
+MIN_ELO_DEFAULT = 0
+COARSE_S_RANGE = [s / 10.0 for s in range(1, 8)]  # 0.1 to 0.7
+COARSE_C_RANGE = [c / 10.0 for c in range(10, 51, 5)]  # 1.0 to 5.0
+PERCENTILES = [q / 100.0 for q in range(0, 101, 5)]
 
 
 # =============================================================================
 # ENGINE SETUP
 # =============================================================================
+
 
 def get_default_engine_path() -> Path:
     """Determines the default Stockfish engine path based on the operating system."""
@@ -51,374 +48,584 @@ def get_default_engine_path() -> Path:
 
 
 # =============================================================================
-# PARALLEL DATA COLLECTION & PROCESSING (from Reference PGN)
+# PHASE 1: DATA COLLECTION AND PREPROCESSING
 # =============================================================================
 
-def analyze_game_worker(
-    game_text: str, engine_path: str, depth: int, multipv: int,
-    timeout: float, hash_mb: int
-) -> list[list[float]]:
+def analyze_game_with_engine(
+    game: chess.pgn.Game,
+    engine: chess.engine.SimpleEngine,
+    depth: int,
+    multipv: int,
+    timeout: float,
+    verbose: bool,
+    move_start: int = MOVE_START_DEFAULT,
+    pawn_cutoff: int = PAWN_CUTOFF_DEFAULT,
+) -> list[dict]:
     """
-    A single worker's task: analyze one game and return a list of spread vectors.
-    
-    This function is designed to be executed in a separate process. It initializes
-    its own persistent, single-threaded engine instance to avoid the overhead of
-    restarting the engine for every game and to prevent thread contention within
-    a single engine when running multiple processes.
+    Analyzes a single game with Stockfish and returns a list of dictionaries,
+    one for each analyzed position.
+
+    Args:
+        game: The chess game to analyze.
+        engine: The chess engine to use for analysis.
+        depth: The search depth for the engine.
+        multipv: The number of principal variations to consider.
+        timeout: The time limit for the engine per move (in seconds).
+        verbose: If True, print progress messages.
+        move_start: The move number to start analysis from.
+        pawn_cutoff: Threshold for centipawn evaluation to skip tactical positions.
+
+    Returns:
+        A list of dictionaries, where each dictionary represents an analyzed position
+        and contains 'move_evals' and 'move_played'.
     """
-    engine = chess.engine.SimpleEngine.popen_uci(engine_path)
-    engine.configure({"Threads": 1, "Hash": hash_mb})
-    
-    game = chess.pgn.read_game(StringIO(game_text))
-    spread_vectors = []
-    
-    if game:
-        board = game.board()
-        for move_number, move in enumerate(game.mainline_moves()):
-            if move_number < MOVE_START_DEFAULT:
+    positions = []
+    board = game.board()
+
+    for move_number, move in enumerate(game.mainline_moves()):
+        if move_number < move_start:
+            board.push(move)
+            continue
+
+        if verbose and move_number > move_start and move_number % 5 == 0:
+            print(f"    ... analyzing move {move_number}")
+
+        try:
+            # Limit: depth plus a time cap (timeout is in seconds)
+            limit = chess.engine.Limit(depth=depth, time=timeout)
+            analysis = engine.analyse(board, limit, multipv=multipv)
+
+            # python-chess returns a list (length multipv) when multipv > 1,
+            # or a single dict when multipv == 1. Normalize to list.
+            if not analysis:
+                if verbose:
+                    print(f"Skipping position at move {move_number}: No analysis returned.")
                 board.push(move)
                 continue
 
-            try:
-                limit = chess.engine.Limit(depth=depth, time=timeout)
-                analysis = engine.analyse(board, limit, multipv=multipv)
-                if not analysis:
-                    board.push(move)
+            if isinstance(analysis, dict):
+                analysis = [analysis]
+
+            best_eval_cp = analysis[0]["score"].pov(board.turn).score(mate_score=MATE_SCORE)
+            if best_eval_cp is None:
+                board.push(move)
+                continue
+
+            # Skip tactically wild positions or trivial repetitions
+            if abs(best_eval_cp) > pawn_cutoff or board.is_repetition(2):
+                board.push(move)
+                continue
+
+            move_evals = {}
+            for info in analysis:
+                if "pv" not in info or not info["pv"]:
                     continue
+                this_move = info["pv"][0]
+                score_cp = info["score"].pov(board.turn).score(mate_score=MATE_SCORE)
+                if score_cp is not None:
+                    move_evals[this_move] = score_cp
 
-                if isinstance(analysis, dict):
-                    analysis = [analysis]
+            if not move_evals:
+                board.push(move)
+                continue
 
-                best_eval_cp = analysis[0]["score"].pov(board.turn).score(mate_score=MATE_SCORE)
-                if best_eval_cp is None or abs(best_eval_cp) > PAWN_CUTOFF_DEFAULT or board.is_repetition(2):
-                    board.push(move)
-                    continue
+            positions.append({
+                "move_evals": move_evals,
+                "move_played": move,
+            })
 
-                move_evals = {
-                    info["pv"][0]: info["score"].pov(board.turn).score(mate_score=MATE_SCORE)
-                    for info in analysis if "pv" in info and info["pv"] and info["score"].pov(board.turn).score(mate_score=MATE_SCORE) is not None
-                }
-                
-                if move_evals:
-                    sorted_moves = sorted(move_evals.items(), key=lambda x: x[1], reverse=True)
-                    if not sorted_moves:
-                        board.push(move)
-                        continue
-                    
-                    v0 = sorted_moves[0][1]
-                    spread = [compute_delta(v0, vi) for _, vi in sorted_moves]
-                    spread_vectors.append(spread)
+        except (chess.engine.EngineError, chess.engine.TimeoutError, IndexError) as e:
+            if verbose:
+                print(f"Skipping position at move {move_number} due to error: {e}")
 
-            except (chess.engine.EngineError, chess.engine.TimeoutError, IndexError):
-                pass  # Ignore errors in worker, just move to the next position
-            
-            board.push(move)
-            
-    engine.quit()
-    return spread_vectors
+        board.push(move)
+
+    return positions
+
+
+# =============================================================================
+# SPREAD COMPUTATION
+# =============================================================================
+
+
+def _integrand(z):
+    return 1.0 / (1.0 + abs(z))
+
 
 def compute_delta(v0: float, vi: float) -> float:
-    """Computes the scaled difference (delta) between two centipawn evaluations."""
+    """
+    Computes the spread delta between two evaluations, v0 and vi, in centipawns.
+
+    Args:
+        v0: The evaluation of the best move.
+        vi: The evaluation of the move to compare against.
+
+    Returns:
+        The computed spread delta.
+    """
     v0_pawns, vi_pawns = v0 / 100.0, vi / 100.0
+    # Same sign or zero: log-based distance
     if v0_pawns * vi_pawns >= 0:
         return abs(log(1 + abs(v0_pawns)) - log(1 + abs(vi_pawns)))
-    delta, _ = quad(lambda z: 1.0 / (1.0 + abs(z)), vi_pawns, v0_pawns)
-    return delta
-
-def build_reference_dataset(
-    pgn_path: str, engine_path: str, depth: int,
-    multipv: int, timeout: float, verbose: bool,
-    num_workers_manual: int | None, hash_mb_manual: int | None
-) -> list[list[float]]:
-    """
-    Analyzes the reference PGN in parallel to create a dataset of spread vectors.
-    
-    This is the main data collection function. It orchestrates the performance-
-    intensive task of analyzing every game in the reference PGN. It works by:
-    1. Calculating available system resources (CPU cores, RAM).
-    2. Splitting the PGN file into individual game strings.
-    3. Creating a pool of worker processes (ProcessPoolExecutor).
-    4. Distributing the game analysis tasks to the workers.
-    5. Collecting the results (lists of spread vectors) from each worker.
-    """
-    print("Processing reference PGN to generate spread vectors...")
-    
-    # --- Resource Calculation ---
-    # Automatically configure parallel workers and memory based on system specs,
-    # unless manually overridden by the user.
-    if num_workers_manual and hash_mb_manual:
-        num_workers = num_workers_manual
-        hash_per_worker = hash_mb_manual
-        if verbose:
-            print("Using manual resource settings:")
-            print(f"  Workers: {num_workers}, Hash per worker: {hash_per_worker} MB")
-    elif psutil:
-        # --- Automatic Calculation ---
-        available_mem_gb = psutil.virtual_memory().available / (1024**3)
-        num_cpus = os.cpu_count() or 1
-        
-        # Use 80% of available cores for worker processes.
-        num_workers = max(1, int(num_cpus * 0.8))
-        
-        # Allocate a safer 50% of available system memory for engine hash, divided among workers.
-        total_hash_mb = int((available_mem_gb * 0.5) * 1024)
-        hash_per_worker = max(16, total_hash_mb // num_workers)
-        
-        # Add a "safety cap" to prevent excessive allocation on high-RAM systems.
-        # It's rarely efficient to give a single Stockfish instance more than 16GB hash.
-        HASH_CAP_MB = 16 * 1024
-        if hash_per_worker > HASH_CAP_MB:
-            if verbose:
-                print(f"Capping hash per worker from {hash_per_worker}MB to {HASH_CAP_MB}MB for efficiency.")
-            hash_per_worker = HASH_CAP_MB
-        
-        if verbose:
-            print("Using automatic resource settings:")
-            print(f"  System Info: {num_cpus} CPUs, {available_mem_gb:.1f} GB available RAM")
-            print(f"  Using {num_workers} worker processes with {hash_per_worker} MB hash each.")
+    # Opposite sign: integrate 1/(1+|z|) from vi to v0
     else:
-        print("Warning: psutil not found and no manual settings provided. Using safe defaults.")
-        num_workers = 2
-        hash_per_worker = 256
+        delta, _ = quad(_integrand, vi_pawns, v0_pawns)
+        return delta
 
-    # --- PGN Splitting for Workers ---
-    # The PGN file is split into a list of strings, where each string is a full
-    # game. This allows each worker to receive a game's text and process it
-    # independently without file I/O conflicts.
+
+def create_spread_vector(position_data: dict, max_moves: int) -> dict | None:
+    """
+    Creates a spread vector and identifies the index of the move played for a given position.
+
+    Args:
+        position_data: A dictionary containing 'move_evals' and 'move_played'.
+        max_moves: The maximum number of moves to include in the spread vector.
+
+    Returns:
+        A dictionary with 'spread' and 'played_index', or None if the position
+        is not usable.
+    """
+    move_evals = position_data["move_evals"]
+    sorted_moves = sorted(move_evals.items(), key=lambda x: x[1], reverse=True)
+
+    if not sorted_moves:
+        return None
+
+    best_move, v0 = sorted_moves[0]
+
+    spread = []
+    move_to_index = {}
+
+    for idx, (move, vi) in enumerate(sorted_moves[:max_moves]):
+        spread.append(compute_delta(v0, vi))
+        move_to_index[move] = idx
+
+    # Pad with +inf to reach max_moves length
+    while len(spread) < max_moves:
+        spread.append(float("inf"))
+
+    played_index = move_to_index.get(position_data["move_played"], -1)
+    if played_index == -1:
+        return None
+
+    return {"spread": spread, "played_index": played_index}
+
+
+# =============================================================================
+# DATASET BUILDING
+# =============================================================================
+
+
+def build_training_dataset(
+    pgn_path: str,
+    engine: chess.engine.SimpleEngine,
+    max_games: int | None,
+    depth: int,
+    multipv: int,
+    timeout: float,
+    verbose: bool,
+) -> tuple[list[dict], dict]:
+    """
+    Analyzes games from a PGN file to build a training dataset without ELO filtering.
+
+    Args:
+        pgn_path: The path to the PGN file.
+        engine: The chess engine to use for analysis.
+        max_games: The maximum number of games to process.
+        depth: The search depth for the engine.
+        multipv: The number of principal variations to consider.
+        timeout: The time limit for the engine per move (in seconds).
+        verbose: If True, print progress messages.
+
+    Returns:
+        A tuple containing the training data and statistics about the processed games.
+    """
+    print("Processing all valid games from PGN file (no ELO filter applied).")
+
+    training_data = []
+    stats = {"num_games": 0, "num_moves": 0, "elos": [], "years": []}
+
     with open(pgn_path, "r", encoding="utf-8", errors="ignore") as f:
-        full_pgn_text = f.read()
-    game_texts = [f"[Event {game_text}" for game_text in full_pgn_text.split("\n[Event ") if game_text.strip()]
-    if game_texts and not full_pgn_text.startswith("[Event"):
-        game_texts[0] = game_texts[0][7:]
+        while max_games is None or stats["num_games"] < max_games:
+            game = chess.pgn.read_game(f)
+            if game is None:
+                break
 
-    print(f"Found {len(game_texts)} games to analyze.")
-    reference_spreads = []
-
-    # --- Parallel Processing ---
-    # Create a partial function to pass fixed arguments to the worker.
-    worker_func = partial(
-        analyze_game_worker,
-        engine_path=engine_path, depth=depth, multipv=multipv,
-        timeout=timeout, hash_mb=hash_per_worker
-    )
-    
-    with ProcessPoolExecutor(max_workers=num_workers) as executor:
-        # Use executor.submit to get a "future" for each task. This allows us
-        # to process results as they are completed, not in submission order.
-        futures = [executor.submit(worker_func, game_text) for game_text in game_texts]
-        
-        # Use as_completed to get results as soon as they are ready,
-        # providing more responsive feedback to the user.
-        for i, future in enumerate(as_completed(futures)):
             try:
-                game_spreads = future.result()
-                if game_spreads:
-                    reference_spreads.extend(game_spreads)
-            except Exception as e:
-                if verbose:
-                    print(f"A worker process failed with an error: {e}")
+                white_elo = int(game.headers.get("WhiteElo", "0"))
+                black_elo = int(game.headers.get("BlackElo", "0"))
+            except (ValueError, AttributeError):
+                continue
 
-            if verbose and (i + 1) % 5 == 0: # More frequent updates
-                print(f"  ... processed {i + 1}/{len(game_texts)} games.")
+            date_str = game.headers.get("Date", f"{DEFAULT_YEAR}.01.01")
+            try:
+                year = int(date_str.split(".")[0])
+            except (ValueError, IndexError):
+                year = DEFAULT_YEAR
 
-    print(f"\nCreated {len(reference_spreads)} reference positions from {len(game_texts)} games.")
-    return reference_spreads
+            if white_elo == MIN_ELO_DEFAULT or black_elo == MIN_ELO_DEFAULT:
+                continue
+
+            if verbose:
+                print(
+                    f"Processing game {stats['num_games'] + 1} "
+                    f"({game.headers.get('White', '?')} vs {game.headers.get('Black', '?')})..."
+                )
+
+            positions = analyze_game_with_engine(
+                game=game,
+                engine=engine,
+                depth=depth,
+                multipv=multipv,
+                timeout=timeout,
+                verbose=verbose,
+            )
+
+            if positions:
+                stats["num_games"] += 1
+                stats["elos"].extend([white_elo, black_elo])
+                stats["years"].append(year)
+
+                for pos_data in positions:
+                    spread_data = create_spread_vector(pos_data, multipv)
+                    if spread_data is not None:
+                        training_data.append(spread_data)
+
+    stats["num_moves"] = len(training_data)
+    print(
+        f"Created {stats['num_moves']} training positions from "
+        f"{stats['num_games']} games."
+    )
+    return training_data, stats
 
 
 # =============================================================================
-# AEe and IPR CALCULATION
+# PROBABILITY MODEL AND LOSS
 # =============================================================================
+
 
 def compute_move_probabilities(spread: list[float], s: float, c: float) -> list[float]:
-    """Computes move probabilities given a spread vector, s, and c."""
-    if s <= 0 or c <= 0: return [0.0] * len(spread)
-    shares = [exp(-((delta / s) ** c)) if delta != float("inf") else 0.0 for delta in spread]
+    """
+    Computes the probability for each move given a spread vector and parameters s and c.
+
+    Args:
+        spread: A list of spread deltas for each move.
+        s: The scaling parameter.
+        c: The shape parameter.
+
+    Returns:
+        A list of probabilities for each move.
+    """
+    shares = [
+        exp(-((delta / s) ** c)) if delta != float("inf") else 0.0
+        for delta in spread
+    ]
     total_shares = sum(shares)
+
     if total_shares == 0:
-        num_valid = sum(1 for d in spread if d != float("inf"))
-        return [1.0 / num_valid if d != float("inf") else 0.0 for d in spread] if num_valid > 0 else [0.0] * len(spread)
+        # If all zero, distribute uniformly over finite entries
+        num_valid_moves = sum(1 for d in spread if d != float("inf"))
+        if num_valid_moves == 0:
+            return [0.0] * len(spread)
+        return [1.0 / num_valid_moves if d != float("inf") else 0.0 for d in spread]
+
     return [share / total_shares for share in shares]
 
-def calculate_aee(ref_spreads: list[list[float]], s: float, c: float) -> float:
+
+# =============================================================================
+# SCORING / OPTIMIZATION
+# =============================================================================
+
+
+def calculate_score_for_sc_pair(
+    s: float, c: float, training_data: list[dict], percentiles: list[float]
+) -> float:
     """
-    Calculates the Average Expected Error (AEe) for a given s and c
-    over the reference dataset of spread vectors.
-    
-    AEe is the model's prediction for the average error (delta) a player with
-    skill (s, c) would make on the positions in the reference set.
-    Formula: AEe = (1/T) * Σ_t Σ_{i≥1} [ p_{i,t} * δ_{i,t} ]
-    where T is the total number of positions.
+    Calculates the fit score for a single pair of (s, c) parameters.
+
+    Args:
+        s: The scaling parameter.
+        c: The shape parameter.
+        training_data: The dataset of analyzed positions.
+        percentiles: A list of percentiles to use for scoring.
+
+    Returns:
+        The calculated fit score.
     """
-    # For each position (spread) in the reference set, we calculate the
-    # expected error for that position. The expected error is the sum of
-    # (probability * error) for every possible non-best move.
-    total_expected_error = sum(
-        p * d
-        for spread in ref_spreads
-        # We compute probabilities for all moves, then zip them with their deltas.
-        # We skip the first element ([1:]) because the best move has a delta of 0.
-        for p, d in zip(compute_move_probabilities(spread, s, c)[1:], spread[1:])
-        if d != float("inf")
+    if s <= 0 or c <= 0:
+        return float("inf")
+
+    total_score = 0.0
+
+    for q in percentiles:
+        up_sum = 0.0
+
+        for pos in training_data:
+            probs = compute_move_probabilities(pos["spread"], s, c)
+            played_index = pos["played_index"]
+
+            p_minus = sum(probs[:played_index])
+            p_played = probs[played_index]
+            p_plus = p_minus + p_played
+
+            if p_plus <= q:
+                up_sum += 1.0
+            elif p_minus < q < p_plus and p_played > 0:
+                up_sum += abs(q - p_minus) / p_played
+
+        R_qsc = up_sum / len(training_data) if training_data else 0.0
+        total_score += (R_qsc - q) ** 2
+
+    return total_score
+
+
+def fit_parameters_hybrid(
+    training_data: list[dict], verbose: bool = True
+) -> tuple[float, float]:
+    """
+    Finds the best-fit (s, c) parameters using a hybrid optimization approach.
+
+    This method combines a coarse grid search with a local refinement (Nelder-Mead)
+    to efficiently find the optimal parameters.
+
+    Args:
+        training_data: The dataset of analyzed positions.
+        verbose: If True, print progress and results of the optimization.
+
+    Returns:
+        A tuple containing the best-fit s and c parameters.
+    """
+    if verbose:
+        print("Starting coarse grid search...")
+
+    s_initial_guess, c_initial_guess = 0.1, 1.0  # Fallback values
+    coarse_best_score = float("inf")
+    sc_pairs = [(s, c) for s in COARSE_S_RANGE for c in COARSE_C_RANGE]
+
+    func = partial(
+        calculate_score_for_sc_pair,
+        training_data=training_data,
+        percentiles=PERCENTILES,
     )
-    # The final AEe is the average of these expected errors over all positions.
-    return total_expected_error / len(ref_spreads) if ref_spreads else 0.0
+
+    # Use all available CPU cores (you may adjust this policy if desired)
+    with ProcessPoolExecutor() as executor:
+        futures = {executor.submit(func, sc[0], sc[1]): sc for sc in sc_pairs}
+        for future in futures:
+            sc = futures[future]
+            score = future.result()
+            if score < coarse_best_score:
+                coarse_best_score = score
+                s_initial_guess, c_initial_guess = sc
+
+    if verbose:
+        print(
+            f"Coarse search best guess: s={s_initial_guess:.3f}, "
+            f"c={c_initial_guess:.2f}, score={coarse_best_score:.6f}"
+        )
+        print("Starting local refinement with Nelder-Mead...")
+
+    def objective_function(params):
+        return calculate_score_for_sc_pair(
+            params[0], params[1], training_data, PERCENTILES
+        )
+
+    result = minimize(
+        objective_function,
+        [s_initial_guess, c_initial_guess],
+        method="Nelder-Mead",
+        options={"xatol": 1e-4, "fatol": 1e-4, "disp": verbose},
+    )
+
+    refined_s, refined_c = result.x
+
+    if verbose:
+        print(
+            f"Refinement complete. Final best: s={refined_s:.4f}, "
+            f"c={refined_c:.3f}, score={result.fun:.6f}"
+        )
+
+    return refined_s, refined_c
+
+
+# =============================================================================
+# CSV SUMMARY OUTPUT
+# =============================================================================
+
+
+def save_summary_csv(data: dict, path: Path):
+    """
+    Saves summary data to a CSV file, appending if the file already exists.
+
+    Args:
+        data: A dictionary containing the summary data.
+        path: The path to the output CSV file.
+    """
+    file_exists = path.is_file()
+
+    with open(path, "a", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=list(data.keys()))
+        if not file_exists:
+            writer.writeheader()  # Write header only if file is new
+        writer.writerow(data)
 
 
 # =============================================================================
 # MAIN EXECUTION
 # =============================================================================
 
+
 def main():
     parser = argparse.ArgumentParser(
-        description="Calculate AEe and IPR on a reference PGN set using pre-fitted s and c parameters."
+        description="Fit s and c parameters from a PGN training set."
     )
-    parser.add_argument("sc_results_csv", type=str, help="Path to the CSV file from Step 1 (s, c fits).")
-    parser.add_argument("reference_pgn", type=str, help="Path to the reference (Solitaire) PGN file.")
-    parser.add_argument("--engine_path", type=str, default=str(get_default_engine_path()), help="Path to Stockfish.")
-    parser.add_argument("--depth", type=int, default=12, help="Engine search depth.")
-    parser.add_argument("--multipv", type=int, default=20, help="Engine MultiPV setting.")
-    parser.add_argument("--timeout", type=float, default=0.5, help="Engine time limit per move.")
-    parser.add_argument("--use_cache", action="store_true", help="Use/create pickle cache for reference PGN analysis.")
-    parser.add_argument("--verbose", action="store_true", help="Enable verbose logging.")
-    parser.add_argument("--smooth", action="store_true", help="Apply linear regression to smooth s and c values before calculation.")
-    parser.add_argument("--num_workers", type=int, default=None, help="Manually set the number of worker processes.")
-    parser.add_argument("--hash_mb_per_worker", type=int, default=None, help="Manually set hash memory in MB for each engine.")
+    parser.add_argument("pgn_path", type=str, help="Path to the PGN training file.")
+    parser.add_argument(
+        "--engine_path",
+        type=str,
+        default=str(get_default_engine_path()),
+        help="Path to the Stockfish executable.",
+    )
+    parser.add_argument(
+        "--depth",
+        type=int,
+        default=12,
+        help="Search depth for engine analysis.",
+    )
+    parser.add_argument(
+        "--multipv",
+        type=int,
+        default=20,
+        help="Number of moves to consider (MultiPV). Also used as max_moves.",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=0.5,
+        help="Per-position time limit (seconds) for engine analysis.",
+    )
+    parser.add_argument(
+        "--max_games",
+        type=int,
+        default=None,
+        help="Maximum number of games to process (None = all).",
+    )
+    parser.add_argument(
+        "--use_cache",
+        action="store_true",
+        help="Use / create a pickle cache for training data.",
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Enable verbose logging.",
+    )
+    parser.add_argument(
+        "--output_name",
+        type=str,
+        default=None,
+        help="Custom name for the output CSV file (without extension).",
+    )
+
     args = parser.parse_args()
 
-    # --- Load pre-fitted s,c data ---
-    # The script begins by loading the results from the Step 1 script.
-    # This file contains the empirically fitted (s, c) pairs for various
-    # Elo levels or player populations.
-    try:
-        sc_df = pd.read_csv(args.sc_results_csv)
-    except FileNotFoundError:
-        sys.exit(f"Error: Input CSV file not found at {args.sc_results_csv}")
+    pgn_path = Path(args.pgn_path)
+    if not pgn_path.exists():
+        raise FileNotFoundError(f"PGN file not found: {pgn_path}")
 
-    # --- (Optional) Smooth s and c parameters ---
-    if args.smooth:
-        print("\nApplying smoothing to s and c parameters...")
-        # Ensure the dataframe is sorted by Elo for sensible regression
-        sc_df = sc_df.sort_values(by="AvgElo").dropna(subset=["s", "c", "AvgElo"])
-        
-        X_elo = sc_df[["AvgElo"]]
-        
-        # Fit s vs. Elo
-        y_s = sc_df["s"]
-        s_fitter = LinearRegression().fit(X_elo, y_s)
-        sc_df["s_smoothed"] = s_fitter.predict(X_elo)
-        
-        # Fit c vs. Elo
-        y_c = sc_df["c"]
-        c_fitter = LinearRegression().fit(X_elo, y_c)
-        sc_df["c_smoothed"] = c_fitter.predict(X_elo)
+    # Cache path
+    cache_path = pgn_path.with_suffix(".training_cache.pkl")
 
-        s_col, c_col = "s_smoothed", "c_smoothed"
-        if args.verbose:
-            print("Smoothing complete. Using smoothed parameters for AEe calculation.")
-            print(sc_df[['AvgElo', 's', 's_smoothed', 'c', 'c_smoothed']])
-    else:
-        s_col, c_col = "s", "c"
-
-    # --- Build or Load Reference Dataset from PGN ---
-    # This is the most computationally expensive step. The script analyzes the
-    # reference PGN (e.g., world championship games) to create a standardized
-    # dataset of "spread vectors". This dataset represents the "test" that
-    # each (s, c) pair will be measured against.
-    # Caching this dataset to a pickle file is crucial for performance,
-    # allowing subsequent runs to skip the analysis entirely.
-    cache_path = Path(args.reference_pgn).with_suffix(".reference_spreads_cache.pkl")
+    # -----------------------------------------------------------------
+    # Load / compute training data
+    # -----------------------------------------------------------------
     if args.use_cache and cache_path.exists():
-        if args.verbose: print(f"\nLoading cached reference data from {cache_path}...")
-        with open(cache_path, "rb") as f: reference_spreads = pickle.load(f)
-    else:
-        reference_spreads = build_reference_dataset(
-            args.reference_pgn, args.engine_path, args.depth, args.multipv, 
-            args.timeout, args.verbose, args.num_workers, args.hash_mb_per_worker
-        )
-        if args.use_cache:
-            if args.verbose: print(f"Saving reference data cache to {cache_path}...")
-            with open(cache_path, "wb") as f: pickle.dump(reference_spreads, f)
-    
-    if not reference_spreads:
-        sys.exit("No reference positions could be analyzed from the PGN. Exiting.")
-
-    # --- STAGE 3: Calculate AEe for each (s, c) pair ---
-    # This is the core calculation loop. For each row from the input CSV,
-    # the script takes the (s, c) parameters (either raw or smoothed) and
-    # calculates the AEe against the reference dataset.
-    print("\nCalculating AEe for each s,c pair...")
-    aee_results = []
-    for index, row in sc_df.iterrows():
-        try:
-            s = float(row[s_col])
-            c = float(row[c_col])
-            if s <= 0 or c <= 0:
-                raise ValueError("s and c must be positive")
-        except (ValueError, KeyError):
-            print(f"Warning: Skipping row {index+2} due to invalid or missing s/c values.")
-            aee_results.append(np.nan)
-            continue
-        
-        aee = calculate_aee(reference_spreads, s, c)
-        aee_results.append(aee)
         if args.verbose:
-            elo_label = f" (for Elo ~{row['AvgElo']:.0f})" if 'AvgElo' in row else ""
-            print(f"  s={s:.4f}, c={c:.4f}{elo_label} -> AEe={aee:.6f}")
+            print(f"Loading cached training data from {cache_path}...")
+        with open(cache_path, "rb") as f:
+            training_data, stats = pickle.load(f)
+    else:
+        if args.verbose:
+            print(f"Starting engine {args.engine_path}...")
+        engine = chess.engine.SimpleEngine.popen_uci([args.engine_path])
 
-    sc_df["AEe"] = aee_results
-    sc_df.dropna(subset=["AEe", "AvgElo"], inplace=True) # Drop rows where AEe could not be calculated
+        try:
+            training_data, stats = build_training_dataset(
+                pgn_path=str(pgn_path),
+                engine=engine,
+                max_games=args.max_games,
+                depth=args.depth,
+                multipv=args.multipv,
+                timeout=args.timeout,
+                verbose=args.verbose,
+            )
+        finally:
+            engine.quit()
 
-    # --- STAGE 4: Derive New IPR Formula via Linear Regression ---
-    # The final and most important step. We now create a new mapping from our
-    # newly calculated AEe values to the familiar Elo scale. This linear regression
-    # finds the best-fit line for IPR(AEe) based on our Stockfish-generated data.
-    # This is the calibrated IPR formula for this specific engine and reference set.
-    print("\nDeriving new IPR formula from AEe vs. Elo data...")
-    X_aee = sc_df[["AEe"]]
-    y_elo = sc_df["AvgElo"]
+        if args.use_cache:
+            if args.verbose:
+                print(f"Saving training data cache to {cache_path}...")
+            with open(cache_path, "wb") as f:
+                pickle.dump((training_data, stats), f)
 
-    if len(sc_df) < 2:
-        sys.exit("Error: Need at least two valid data points to derive an IPR formula.")
+    if not training_data:
+        print("No training data collected. Exiting.")
+        return
 
-    ipr_fitter = LinearRegression().fit(X_aee, y_elo)
-    new_intercept = ipr_fitter.intercept_
-    new_slope = ipr_fitter.coef_[0]
+    # -----------------------------------------------------------------
+    # Fit s and c
+    # -----------------------------------------------------------------
+    s_fit, c_fit = fit_parameters_hybrid(training_data, verbose=args.verbose)
+
+    # -----------------------------------------------------------------
+    # Prepare summary statistics
+    # -----------------------------------------------------------------
+    num_games = stats.get("num_games", 0)
+    num_moves = stats.get("num_moves", 0)
+    elos = stats.get("elos", [])
+    years = stats.get("years", [])
+
+    min_elo = min(elos) if elos else 0
+    max_elo = max(elos) if elos else 0
+    avg_elo = float(np.mean(elos)) if elos else 0.0
+
+    first_year = min(years) if years else 0
+    last_year = max(years) if years else 0
+
+    # AE_e is not computed in this script; placeholder "N/A" kept.
+    summary_data = {
+        "filename": pgn_path.name,
+        "MULTI_PV": args.multipv,
+        "Number_Games": num_games,
+        "Number_Moves": num_moves,
+        "MinElo": min_elo,
+        "MaxElo": max_elo,
+        "AvgElo": avg_elo,
+        "s": s_fit,
+        "c": c_fit,
+        "AE_e": "N/A",
+        "FirstYear": first_year,
+        "LastYear": last_year,
+    }
+
+    # -----------------------------------------------------------------
+    # Write CSV summary
+    # -----------------------------------------------------------------
+    # Ensure the output directory exists
+    output_dir = Path("data")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Determine output filename
+    if args.output_name:
+        output_basename = Path(args.output_name)
+    else:
+        output_basename = Path(f"{pgn_path.stem}_IPR_s,c-fit")
     
-    # --- Calculate Goodness-of-Fit Metrics ---
-    y_predicted = ipr_fitter.predict(X_aee)
-    r_squared = r2_score(y_elo, y_predicted)
-    # Standard error of the regression (RMSE of the residuals)
-    std_error = np.sqrt(np.mean((y_elo - y_predicted)**2))
+    csv_path = output_dir / output_basename.with_suffix(".csv")
 
+    save_summary_csv(summary_data, csv_path)
+    print(f"Summary saved to {csv_path}")
 
-    print("\n" + "="*60)
-    print("      NEW INTRINSIC PERFORMANCE RATING (IPR) FORMULA")
-    print("="*60)
-    print(f"  IPR = {new_intercept:.4f} + ({new_slope:.4f}) * AEe")
-    print("-" * 60)
-    print(f"  R-squared: {r_squared:.6f}")
-    print(f"  Standard Error: {std_error:.4f} Elo points")
-    print("="*60 + "\n")
-
-    # Calculate the final IPR for each row using the new formula
-    sc_df["IPR"] = new_intercept + new_slope * sc_df["AEe"]
-
-    # --- Add model fit statistics to all rows for comprehensive output ---
-    sc_df["IPR_Intercept"] = new_intercept
-    sc_df["IPR_Slope"] = new_slope
-    sc_df["R_Squared"] = r_squared
-    sc_df["Std_Error"] = std_error
-
-    # --- Write Final Output CSV ---
-    # The final step is to save the results. The output CSV contains all the
-    # original data from the input file, now augmented with the calculated
-    # AEe and the new IPR values, providing a complete picture of the analysis.
-    output_filename = f"{Path(args.sc_results_csv).stem}_with_IPR.csv"
-    output_path = Path("data") / output_filename
-    output_path.parent.mkdir(exist_ok=True)
-    
-    sc_df.to_csv(output_path, index=False, float_format="%.8f")
-    print(f"\nSuccessfully calculated and saved results to {output_path}")
 
 if __name__ == "__main__":
     main()
