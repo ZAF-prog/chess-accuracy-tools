@@ -204,6 +204,7 @@ def create_player_data():
 
 def init_worker(engine_path: Path, hash_mb: int):
     global worker_engine
+    print(f"Worker {os.getpid()}: Initializing Stockfish...", flush=True)
     try:
         worker_engine = chess.engine.SimpleEngine.popen_uci(str(engine_path))
         worker_engine.configure({"Hash": int(hash_mb), "Threads": 1})
@@ -263,7 +264,7 @@ def analyze_single_game(game, engine, data_store, depth, multipv, verbose=False)
         ply += 1
         
         if verbose and ply % 10 == 0:
-            print(f"    ...analyzing move {ply}...", flush=True)
+            print(f"    Worker {os.getpid()} | {white} vs {black} | ...analyzing move {ply}...", flush=True)
 
         if ply <= BOOK_MOVES * 2:
             board.push(move)
