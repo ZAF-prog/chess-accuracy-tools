@@ -1,0 +1,240 @@
+	(2025-12-20 14:50) :
+Review the uploaded PDFs, for the algorithms described.
+Extract every mathematical variable defined, and create a dictionary mapping them to their definitions.
+Make sure all formulas are transcribed, and the details of parameter estimation are provided.
+Use Python syntax for the expressions, rather than Latex.
+Write a concise but precise specification, sufficient for software implementation.
+Include comments, and explanation for the data used.
+
+
+
+on_message (2025-12-20 14:50) :
+
+
+	(2025-12-20 14:50) :
+The paper describes methods for detecting chess cheating through engine analysis, defining several key metrics and algorithms. The primary mathematical variables and their definitions are:
+
+**Core Metrics:**
+
+1. **CV (Coincidence Value)**: A value between 0 and 1 representing the proportion of non-book moves chosen by a player with the same evaluation as the engine's preferred move.
+   - Formula: `CV = (number_of_moves_with_same_evaluation_as_engine) / (total_non_book_moves)`
+   - Range: [0, 1]
+   - Note: CV >= MM (Move Matching percentage) by definition
+
+2. **MM (Move Matching percentage)**: The percentage of played moves that are identical to the engine's preferred move (used by Regan, not the primary focus of this paper).
+   - Formula: `MM = (number_of_exact_matches_with_engine_top_move) / (total_non_book_moves)`
+
+3. **AE (Average Error)**: The mean difference in evaluation between the best move and the played move for non-book moves, expressed in centipawns.
+   - Formula: `AE = sum(engine_eval_best_move - engine_eval_played_move) / (total_non_book_moves)`
+   - Units: centipawns (1 pawn = 100 centipawns)
+   - Note: AE <= 0 (always non-positive since best move is reference)
+   - Special cases excluded: positions involving mate evaluations that cannot be easily converted to centipawns
+
+**Algorithm Specification:**
+
+```python
+# Chess Cheating Detection Algorithm
+
+class ChessCheatDetection:
+    def __init__(self, engine, depth=20, multi_pv=5):
+        """
+        Initialize the chess cheating detection analyzer.
+        
+        Parameters:
+        - engine: UCI-compatible chess engine (e.g., Stockfish 3.0)
+        - depth: Search depth for engine analysis (default: 20)
+        - multi_pv: Number of best moves to evaluate (default: 5)
+        """
+        self.engine = engine
+        self.depth = depth
+        self.multi_pv = multi_pv
+        self.opening_database = self.build_opening_database()
+    
+    def build_opening_database(self):
+        """
+        Build historical opening database from ~7M games.
+        
+        Returns:
+        - Dictionary mapping ECO codes to position tables
+        - Each position stored as hashed FEN with first occurrence date
+        - Approximately 87 million different positions
+        - Organized in ~500 tables (one per 3-character ECO code)
+        """
+        database = {}
+        # For each game in historical collection:
+        #   1. Determine ECO code
+        #   2. Generate FEN positions for first 20 moves
+        #   3. Store position with earliest occurrence date
+        return database
+    
+    def determine_book_depth(self, game, game_date):
+        """
+        Determine how many moves are 'book' (known theory) at game date.
+        
+        Parameters:
+        - game: Chess game in PGN format
+        - game_date: Date the game was played
+        
+        Returns:
+        - book_depth: Number of moves that were known theory
+        
+        Algorithm:
+        1. Determine game's ECO code
+        2. Generate FEN positions for the game
+        3. Look up each position in corresponding ECO table
+        4. Count positions that existed before game_date
+        5. Return count as book_depth
+        """
+        eco_code = self.get_eco_code(game)
+        positions = self.generate_fen_positions(game)
+        book_depth = 0
+        
+        for position in positions:
+            if position in self.opening_database[eco_code]:
+                first_occurrence = self.opening_database[eco_code][position]
+                if first_occurrence < game_date:
+                    book_depth += 1
+                else:
+                    break
+            else:
+                break
+        
+        return book_depth
+    
+    def analyze_game(self, game, game_date):
+        """
+        Analyze a game for potential cheating indicators.
+        
+        Parameters:
+        - game: Chess game in PGN format
+        - game_date: Date the game was played
+        
+        Returns:
+        - metrics: Dictionary with CV and AE for both players
+        """
+        # Convert PGN to long-algebraic notation
+        moves = self.convert_to_long_algebraic(game)
+        
+        # Determine book depth
+        book_depth = self.determine_book_depth(game, game_date)
+        
+        # Analyze non-book moves only
+        non_book_moves = moves[book_depth:]
+        
+        # Initialize metrics
+        player_metrics = {'white': {}, 'black': {}}
+        
+        for player in ['white', 'black']:
+            player_moves = self.get_player_moves(non_book_moves, player)
+            
+            coincidence_count = 0
+            error_sum = 0
+            valid_moves = 0
+            
+            for move_position in player_moves:
+                # Get engine evaluation for position
+                engine_evals = self.engine.analyze(
+                    move_position,
+                    depth=self.depth,
+                    multi_pv=self.multi_pv
+                )
+                
+                best_eval = engine_evals[0]['score']
+                played_move = move_position['played_move']
+                
+                # Find evaluation of played move
+                played_eval = self.get_move_evaluation(
+                    engine_evals, 
+                    played_move
+                )
+                
+                # Skip mate positions (cannot convert to centipawns reliably)
+                if self.is_mate_position(best_eval, played_eval):
+                    continue
+                
+                valid_moves += 1
+                
+                # Calculate coincidence
+                if played_eval == best_eval:
+                    coincidence_count += 1
+                
+                # Calculate error (in centipawns)
+                error = best_eval - played_eval
+                error_sum += error
+            
+            # Calculate final metrics
+            if valid_moves > 0:
+                player_metrics[player]['CV'] = coincidence_count / valid_moves
+                player_metrics[player]['AE'] = error_sum / valid_moves
+                player_metrics[player]['num_moves'] = valid_moves
+            else:
+                player_metrics[player]['CV'] = None
+                player_metrics[player]['AE'] = None
+                player_metrics[player]['num_moves'] = 0
+        
+        return player_metrics
+    
+    def is_mate_position(self, best_eval, played_eval):
+        """
+        Check if position involves mate evaluations.
+        
+        Excluded cases:
+        - Engine finds shorter forced mate than played
+        - Engine finds forced mate but played move doesn't
+        - Engine finds non-mating move but weaker mate was played
+        
+        Exception: Alternative forced mates of same length scored as 0 difference
+        """
+        # Implementation depends on engine output format
+        pass
+
+# Key Implementation Notes:
+
+# 1. Engine Configuration:
+#    - Use UCI-compatible engine (Stockfish 3.0 recommended)
+#    - Disable opening books: engine.setoption('OwnBook', False)
+#    - Disable endgame tablebases
+#    - Set MultiPV mode: engine.setoption('MultiPV', 5)
+
+# 2. Threading Considerations:
+#    - Single-threaded mode: Deterministic, repeatable results
+#    - Multi-threaded mode: Non-deterministic due to thread scheduling
+#    - Variation in multi-threaded: CV can vary by ~0.1, AE by 10+ centipawns
+
+# 3. Data Requirements:
+#    - Historical game database: ~7M games (ChessBase cbmega + TWIC archive)
+#    - Games from 19th-20th centuries for opening database
+#    - Analysis sample: 120K games at various depths (8-22)
+
+# 4. Depth Variation:
+#    - Metrics vary significantly at different depths
+#    - No single 'definitive' value exists
+#    - Recommended: Analyze at multiple depths (e.g., 16, 18, 20, 22)
+
+# 5. False Positive Detection:
+#    - High CV (>0.8) and low AE (<-15) can occur naturally
+#    - Longer games (>40 moves) with high accuracy from both players less suspicious
+#    - Human 'probabilistic fatigue': CV decreases with game length
+#    - Single game insufficient for accusation
+
+# 6. Filtering Strategy (used in paper):
+#    - Depth 8: Analyze all ~120K games
+#    - Depth 10: Select games with AE <= 13 + 10% random sample (~25K games)
+#    - Depths 12-22: Progressively narrow AE threshold, halving sample each depth
+#    - Final depth 22: ~250 games
+```
+
+**Parameter Estimation Details:**
+
+- **Centipawn values**: Standard chess engine output where 100 centipawns = 1 pawn
+- **Evaluation differences**: Always <= 0 since best move is reference point
+- **Book depth**: Determined empirically from historical database, not fixed at arbitrary value (e.g., 8 moves)
+- **Search depth**: Varied from 8 to 22 in the study; depth 20 recommended for serious analysis
+- **Multi-PV setting**: 5 best moves evaluated per position
+- **Minimum non-book moves**: Games with fewer than 10 non-book moves excluded from analysis
+
+The paper emphasizes that no single CV or AE value is definitive due to variations across depths and threading modes, and that false positives are common even in historical games played before strong engines existed.
+
+Sources: source_0, source_1, source_2, source_3, source_4, source_5, source_6
+
+	on 2025-12-20 19:59
