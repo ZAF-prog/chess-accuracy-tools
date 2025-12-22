@@ -1,0 +1,1 @@
+ python.exe C:\Users\Public\Github\chess-accuracy-tools\src\Regan_IPR_Workflow_V2.py C:\Users\Public\Github\chess-accuracy-tools\data\Elo-buckets.txt C:\Users\Public\Github\chess-accuracy-tools\data\WorldChamp2005-2007.pgn  --depth 15 --multipv 20 --time 0.5
