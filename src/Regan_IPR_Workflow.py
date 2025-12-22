@@ -368,9 +368,9 @@ def run_analysis_parallel(pgn_path, engine_path, depth, time_limit, multipv, cor
     cache_dir = pgn_path.parent / ".ipr_cache" / pgn_path.stem
     cache_dir.mkdir(parents=True, exist_ok=True)
     
-    total_ram = psutil.virtual_memory().total
     use_cores = cores if cores else max(1, int(multiprocessing.cpu_count() * 0.75))
-    hash_per_worker = max(16, int((total_ram*0.6)/(use_cores*1024*1024)))
+    # Use fixed 128MB hash per worker (sufficient for single-position analysis)
+    hash_per_worker = 128
 
     # Dynamic chunk sizing to ensure utilization
     total_games = len(offsets)
@@ -388,17 +388,25 @@ def run_analysis_parallel(pgn_path, engine_path, depth, time_limit, multipv, cor
         for _ in pool.imap_unordered(worker_analyze_chunk, pool_args):
             pass # Progress could be printed here
             
-    # Aggregate
+    # Aggregate with progressive cleanup to reduce memory and disk usage
     master_data = defaultdict(create_player_data)
-    for pkl in cache_dir.glob("chunk_*.pkl"):
+    for pkl in sorted(cache_dir.glob("chunk_*.pkl")):
         try:
             with open(pkl, 'rb') as f:
-                d = pickle.load(f)
-                for pl, val in d.items():
+                chunk_data = pickle.load(f)
+                for pl, val in chunk_data.items():
                     master_data[pl]['test_set'].extend(val['test_set'])
                     master_data[pl]['elos'].extend(val['elos'])
                     master_data[pl]['games'] += val['games']
-        except: pass
+                del chunk_data  # Explicit cleanup
+        except:
+            pass
+        finally:
+            # Delete cache file immediately after reading to reduce disk usage
+            try:
+                pkl.unlink()
+            except:
+                pass
     return master_data
 
 # =============================================================================
@@ -544,6 +552,16 @@ def main():
                     else:
                         print(f"Warning: Bucket file '{line}' not found (checked '{p}' and '{p_rel}')")
     
+    # Prepare Phase A output file with header
+    prog_name = Path(sys.argv[0]).stem
+    output_path_a = args.buckets_list.parent / f"{prog_name}_s,c-fit.csv"
+    fieldnames_a = ['Bucket','MinElo','MaxElo','AvgElo','s','c','N'] + ['INT','SLOPE','R2','AVG_ERR']
+    
+    # Write header immediately
+    with open(output_path_a, 'w', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames_a)
+        writer.writeheader()
+    
     bucket_results = []
     for bf in bucket_files:
         print(f"Analyzing Bucket: {bf.name}")
@@ -567,10 +585,16 @@ def main():
             s, c = fit
             n_moves = len(all_moves)
             print(f"  Fit: Elo={avg_elo:.0f} ({min_elo}-{max_elo}), s={s:.4f}, c={c:.4f}, N={n_moves}")
-            bucket_results.append({
+            result = {
                 'Bucket': bf.name, 'MinElo': min_elo, 'MaxElo': max_elo, 'AvgElo': avg_elo, 
                 's': s, 'c': c, 'N': n_moves
-            })
+            }
+            bucket_results.append(result)
+            
+            # Write this bucket's result immediately (without regression stats yet)
+            with open(output_path_a, 'a', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames_a)
+                writer.writerow(result)
     
     # Regression c vs Elo
     if bucket_results:
@@ -581,12 +605,9 @@ def main():
         c_int, c_slope, c_r2, c_err = weighted_regression(X, Y, W)
         print(f"Regression c vs Elo: c = {c_int:.4f} + {c_slope:.6f}*Elo (R2={c_r2:.3f})")
         
-        # Output fit CSV
-        prog_name = Path(sys.argv[0]).stem
-        output_path = args.buckets_list.parent / f"{prog_name}_s,c-fit.csv"
-        with open(output_path, 'w', newline='') as f:
-            fieldnames = ['Bucket','MinElo','MaxElo','AvgElo','s','c','N'] + ['INT','SLOPE','R2','AVG_ERR']
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
+        # Re-write entire CSV with regression stats now available
+        with open(output_path_a, 'w', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames_a)
             writer.writeheader()
             for i, r in enumerate(bucket_results):
                 row = r.copy()
@@ -612,6 +633,15 @@ def main():
     reg_elo = []
     reg_ae = []
     reg_weights = []
+    
+    # Prepare Phase B output file with header
+    fname = f"{args.training_pgn.stem}_AE-fit.csv"
+    output_path_b = args.training_pgn.parent / fname
+    fieldnames_b = ['Player','Elo','s','c_fixed','AE','Moves','IPR'] + ['INT','SLOPE','R2','AVG_ERR']
+    
+    with open(output_path_b, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames_b)
+        writer.writeheader()
 
     for player, pdata in train_data.items():
         if len(pdata['test_set']) < 20: continue
@@ -640,6 +670,18 @@ def main():
             reg_elo.append(p_elo)
             reg_ae.append(ae)
             reg_weights.append(math.sqrt(len(pdata['test_set'])))
+            
+            # Write this player's result immediately (without IPR and regression stats yet)
+            with open(output_path_b, 'a', newline='', encoding='utf-8') as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames_b)
+                writer.writerow({
+                    'Player': player,
+                    'Elo': p_elo,
+                    's': s_fit,
+                    'c_fixed': c_fixed,
+                    'AE': ae,
+                    'Moves': len(pdata['test_set'])
+                })
             
     # Regression Elo vs AE
     if player_results:
