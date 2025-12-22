@@ -33,6 +33,8 @@ from pathlib import Path
 from collections import defaultdict
 from scipy.optimize import minimize, brentq
 from typing import List, Tuple
+import logging
+import warnings
 try:
     import psutil
 except ImportError:
@@ -514,8 +516,16 @@ def main():
     parser.add_argument("--verbose", action="store_true", help="Print heartbeat every 10 moves")
     args = parser.parse_args()
     
+    # Suppress asyncio error tracebacks (errors are still caught and handled)
+    logging.getLogger('asyncio').setLevel(logging.CRITICAL)
+    warnings.filterwarnings('ignore', category=RuntimeWarning)
+    
+    # Start timing
+    start_time = time.time()
+    
     # --- PHASE A: BUCKETS ---
     print("--- PHASE A: Bucket Analysis ---")
+    phase_a_start = time.time()
     bucket_files = []
     if args.buckets_list.exists():
         with open(args.buckets_list, 'r') as f:
@@ -589,9 +599,11 @@ def main():
         print("No valid bucket results. Utilizing defaults.")
         c_int, c_slope = 0.5, 0.0 # Fallback
         
+    phase_a_time = time.time() - phase_a_start
     
     # --- PHASE B: PLAYER TRAINING SET ---
     print("\n--- PHASE B: Player Analysis ---")
+    phase_b_start = time.time()
     train_data = run_analysis_parallel(args.training_pgn, args.engine, args.depth, args.time, args.multipv, args.cores, args.verbose)
     
     player_results = []
@@ -684,6 +696,18 @@ def main():
         print(f"Player results saved to {fname}")
     else:
         print("No players with sufficient data found.")
+    
+    phase_b_time = time.time() - phase_b_start
+    total_time = time.time() - start_time
+    
+    # Print timing summary
+    print("\n" + "="*50)
+    print("EXECUTION TIME SUMMARY")
+    print("="*50)
+    print(f"Phase A (Bucket Analysis):  {phase_a_time:.2f}s")
+    print(f"Phase B (Player Analysis):  {phase_b_time:.2f}s")
+    print(f"Total Runtime:              {total_time:.2f}s")
+    print("="*50)
 
 if __name__ == "__main__":
     multiprocessing.freeze_support()
