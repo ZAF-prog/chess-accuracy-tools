@@ -5,11 +5,13 @@ Regan_IPR-sc_oss-V6.py
  Combine useful elements from those into a new, comprehensive program that perform a full IPR parameter estimation and model fitting workflow, as follows:
  1) take a list of 'Elo bucket' PGN game collections, each member which would have all players within a narror range of ratings;
     the list is to be provided in a text file whose name is the 1st positional commandline parameter.
+	Example:	'C:\Users\Public\Github\chess-accuracy-tools\data\Elo-buckets.txt'
  2) For each file from 1), determine s,c parameters pairs corresponding to the average Elo in that collection;
 	output CSV file named {program basename}&"_s,c-fit".csv, with 1 line results for each collection.
 	Perform weighted linear regression for c-vs-Elo, with SQRT(N) as weights.
 	Append INTERCEPT, SLOPE, R2, avg Y-error columns to the results to be printed
  3) Continue with a separate training set, a PGN file whose name is the 1st positional commandline parameter.
+	Example:	'C:\Users\Public\Github\chess-accuracy-tools\data\WorldChamp2005-2007.pgn'
 	Taking the c-values calculated from the regression equation determined in 2),
 	estimate s-values for each player (separately for each, single values for everyone),
 	and calculate the respective AE (Average Error).

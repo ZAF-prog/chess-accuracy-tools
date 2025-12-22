@@ -549,14 +549,17 @@ def main():
         if not all_moves: continue
         
         avg_elo = np.mean(all_elos) if all_elos else 0
+        min_elo = np.min(all_elos) if all_elos else 0
+        max_elo = np.max(all_elos) if all_elos else 0
         fit = fit_sc_global(all_moves)
         
         if fit is not None:
             s, c = fit
             n_moves = len(all_moves)
-            print(f"  Fit: Elo={avg_elo:.0f}, s={s:.4f}, c={c:.4f}, N={n_moves}")
+            print(f"  Fit: Elo={avg_elo:.0f} ({min_elo}-{max_elo}), s={s:.4f}, c={c:.4f}, N={n_moves}")
             bucket_results.append({
-                'Bucket': bf.name, 'AvgElo': avg_elo, 's': s, 'c': c, 'N': n_moves
+                'Bucket': bf.name, 'MinElo': min_elo, 'MaxElo': max_elo, 'AvgElo': avg_elo, 
+                's': s, 'c': c, 'N': n_moves
             })
     
     # Regression c vs Elo
@@ -572,13 +575,15 @@ def main():
         prog_name = Path(sys.argv[0]).stem
         output_path = args.buckets_list.parent / f"{prog_name}_s,c-fit.csv"
         with open(output_path, 'w', newline='') as f:
-            writer = csv.DictWriter(f, fieldnames=['Bucket','AvgElo','s','c','N'] + 
-                                               ['INT','SLOPE','R2','AVG_ERR'])
+            fieldnames = ['Bucket','MinElo','MaxElo','AvgElo','s','c','N'] + ['INT','SLOPE','R2','AVG_ERR']
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             for i, r in enumerate(bucket_results):
                 row = r.copy()
-                if i == 0: # Write stats on first line or all? Usually stats are auxiliary.
-                    row.update({'INT': c_int, 'SLOPE': c_slope, 'R2': c_r2, 'AVG_ERR': c_err})
+                # Per-row error: difference between actual c and regression-predicted c
+                predicted_c = c_int + c_slope * r['AvgElo']
+                row_err = abs(r['c'] - predicted_c)
+                row.update({'INT': c_int, 'SLOPE': c_slope, 'R2': c_r2, 'AVG_ERR': row_err})
                 writer.writerow(row)
     else:
         print("No valid bucket results. Utilizing defaults.")
@@ -646,9 +651,36 @@ def main():
             writer.writeheader()
             for i, r in enumerate(player_results):
                 row = r.copy()
-                if i == 0:
-                    row.update({'INT': ae_int, 'SLOPE': ae_slope, 'R2': ae_r2, 'AVG_ERR': ae_err})
+                # Per-row error: difference between actual AE and regression-predicted AE
+                predicted_ae = ae_int + ae_slope * r['Elo']
+                row_err = abs(r['AE'] - predicted_ae)
+                row.update({'INT': ae_int, 'SLOPE': ae_slope, 'R2': ae_r2, 'AVG_ERR': row_err})
                 writer.writerow(row)
+            
+            # Add summary row with average IPR
+            avg_ipr = np.mean([r['IPR'] for r in player_results])
+            avg_elo = np.mean([r['Elo'] for r in player_results])
+            avg_ae = np.mean([r['AE'] for r in player_results])
+            total_moves = sum([r['Moves'] for r in player_results])
+            
+            # Calculate RMSE for summary
+            squared_errors = [(r['AE'] - (ae_int + ae_slope * r['Elo']))**2 for r in player_results]
+            rmse = np.sqrt(np.mean(squared_errors))
+            
+            summary_row = {
+                'Player': 'AVERAGE',
+                'Elo': avg_elo,
+                's': '',
+                'c_fixed': '',
+                'AE': avg_ae,
+                'Moves': total_moves,
+                'IPR': avg_ipr,
+                'INT': ae_int,
+                'SLOPE': ae_slope,
+                'R2': ae_r2,
+                'AVG_ERR': rmse
+            }
+            writer.writerow(summary_row)
         print(f"Player results saved to {fname}")
     else:
         print("No players with sufficient data found.")
