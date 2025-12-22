@@ -202,8 +202,15 @@ def create_player_data():
         'games': 0
     }
 
+# --- GLOBAL WORKER VARIABLE ---
+worker_engine = None
+worker_config = {}
+
 def init_worker(engine_path: Path, hash_mb: int):
     global worker_engine
+    global worker_config
+    worker_config = {'path': engine_path, 'hash': hash_mb}
+    
     print(f"Worker {os.getpid()}: Initializing Stockfish...", flush=True)
     try:
         worker_engine = chess.engine.SimpleEngine.popen_uci(str(engine_path))
@@ -213,8 +220,27 @@ def init_worker(engine_path: Path, hash_mb: int):
         print(f"Init failed: {e}")
         worker_engine = None
 
+def restart_worker_engine():
+    global worker_engine
+    global worker_config
+    
+    # print(f"Worker {os.getpid()}: Restarting engine...", flush=True)
+    if worker_engine:
+        try:
+            worker_engine.quit()
+        except:
+            pass
+        worker_engine = None
+        
+    try:
+        worker_engine = chess.engine.SimpleEngine.popen_uci(str(worker_config['path']))
+        worker_engine.configure({"Hash": int(worker_config['hash']), "Threads": 1})
+    except Exception as e:
+        print(f"Worker {os.getpid()} Restart Failed: {e}", flush=True)
+        worker_engine = None
+
 def worker_analyze_chunk(args):
-    chunk_id, offsets, pgn_path, depth, multipv, cache_dir, verbose = args
+    chunk_id, offsets, pgn_path, depth, time_limit, multipv, cache_dir, verbose = args
     result_file = cache_dir / f"chunk_{chunk_id}.pkl"
     if result_file.exists():
         return f"Chunk {chunk_id} (Skipped/Exists)"
@@ -231,7 +257,7 @@ def worker_analyze_chunk(args):
                 f.seek(offset)
                 game = chess.pgn.read_game(f)
                 if not game: continue
-                analyze_single_game(game, worker_engine, chunk_data, depth, multipv, verbose)
+                analyze_single_game(game, worker_engine, chunk_data, depth, time_limit, multipv, verbose)
     except Exception as e:
         return f"Chunk {chunk_id} Error: {e}"
 
@@ -240,7 +266,7 @@ def worker_analyze_chunk(args):
     
     return f"Chunk {chunk_id} Done ({len(offsets)})"
 
-def analyze_single_game(game, engine, data_store, depth, multipv, verbose=False):
+def analyze_single_game(game, engine, data_store, depth, time_limit, multipv, verbose=False):
     white = game.headers.get("White", "Unknown")
     black = game.headers.get("Black", "Unknown")
     
@@ -272,7 +298,7 @@ def analyze_single_game(game, engine, data_store, depth, multipv, verbose=False)
             continue
             
         try:
-            info = engine.analyse(board, chess.engine.Limit(depth=depth), multipv=multipv)
+            info = engine.analyse(board, chess.engine.Limit(depth=depth, time=time_limit), multipv=multipv)
             res = []
             for pv in info:
                 if 'pv' not in pv: continue
@@ -309,7 +335,12 @@ def analyze_single_game(game, engine, data_store, depth, multipv, verbose=False)
                 player = white if board.turn == chess.WHITE else black
                 data_store[player]['test_set'].append( (raw_values_cp, actual_idx) )
                 
-        except Exception:
+        except Exception as e:
+            if verbose:
+                print(f"    Worker {os.getpid()} Error: {e}. Restarting engine...", flush=True)
+            restart_worker_engine()
+            global worker_engine
+            engine = worker_engine # Refresh local reference
             pass
             
         board.push(move)
@@ -326,7 +357,7 @@ def index_pgn(path):
                 offsets.append(off)
     return offsets
 
-def run_analysis_parallel(pgn_path, engine_path, depth, multipv, cores, verbose=False):
+def run_analysis_parallel(pgn_path, engine_path, depth, time_limit, multipv, cores, verbose=False):
     """Orchestrates parallel analysis and returns aggregated master_data."""
     print(f"Processing {pgn_path}...")
     offsets = index_pgn(pgn_path)
@@ -338,13 +369,19 @@ def run_analysis_parallel(pgn_path, engine_path, depth, multipv, cores, verbose=
     total_ram = psutil.virtual_memory().total
     use_cores = cores if cores else max(1, int(multiprocessing.cpu_count() * 0.75))
     hash_per_worker = max(16, int((total_ram*0.6)/(use_cores*1024*1024)))
+
+    # Dynamic chunk sizing to ensure utilization
+    total_games = len(offsets)
+    # Target approx 4 chunks per core to balance load, but cap at 50 games/chunk
+    chunk_size = max(1, int(total_games / (use_cores * 4)))
+    chunk_size = min(50, chunk_size)
     
     pool_args = []
-    chunks = [offsets[i:i+CHUNK_SIZE] for i in range(0, len(offsets), CHUNK_SIZE)]
+    chunks = [offsets[i:i+chunk_size] for i in range(0, len(offsets), chunk_size)]
     for i, c in enumerate(chunks):
-        pool_args.append( (i, c, pgn_path, depth, multipv, cache_dir, verbose) )
+        pool_args.append( (i, c, pgn_path, depth, time_limit, multipv, cache_dir, verbose) )
         
-    print(f"  Launching {use_cores} workers for {len(chunks)} chunks.")
+    print(f"  Launching {use_cores} workers for {len(chunks)} chunks (size ~{chunk_size})...")
     with multiprocessing.Pool(use_cores, initializer=init_worker, initargs=(engine_path, hash_per_worker)) as pool:
         for _ in pool.imap_unordered(worker_analyze_chunk, pool_args):
             pass # Progress could be printed here
@@ -471,6 +508,7 @@ def main():
     parser.add_argument("training_pgn", type=Path)
     parser.add_argument("--engine", type=Path, default=get_default_engine_path())
     parser.add_argument("--depth", type=int, default=15)
+    parser.add_argument("--time", type=float, default=1.0, help="Time limit per move in seconds")
     parser.add_argument("--multipv", type=int, default=20)
     parser.add_argument("--cores", type=int)
     parser.add_argument("--verbose", action="store_true", help="Print heartbeat every 10 moves")
@@ -499,7 +537,7 @@ def main():
     bucket_results = []
     for bf in bucket_files:
         print(f"Analyzing Bucket: {bf.name}")
-        data = run_analysis_parallel(bf, args.engine, args.depth, args.multipv, args.cores, args.verbose)
+        data = run_analysis_parallel(bf, args.engine, args.depth, args.time, args.multipv, args.cores, args.verbose)
         
         # Merge all data for bucket-level fit
         all_moves = []
@@ -532,7 +570,8 @@ def main():
         
         # Output fit CSV
         prog_name = Path(sys.argv[0]).stem
-        with open(f"{prog_name}_s,c-fit.csv", 'w', newline='') as f:
+        output_path = args.buckets_list.parent / f"{prog_name}_s,c-fit.csv"
+        with open(output_path, 'w', newline='') as f:
             writer = csv.DictWriter(f, fieldnames=['Bucket','AvgElo','s','c','N'] + 
                                                ['INT','SLOPE','R2','AVG_ERR'])
             writer.writeheader()
@@ -548,7 +587,7 @@ def main():
     
     # --- PHASE B: PLAYER TRAINING SET ---
     print("\n--- PHASE B: Player Analysis ---")
-    train_data = run_analysis_parallel(args.training_pgn, args.engine, args.depth, args.multipv, args.cores, args.verbose)
+    train_data = run_analysis_parallel(args.training_pgn, args.engine, args.depth, args.time, args.multipv, args.cores, args.verbose)
     
     player_results = []
     
@@ -600,7 +639,8 @@ def main():
 
         # Output AE Fit CSV
         fname = f"{args.training_pgn.stem}_AE-fit.csv"
-        with open(fname, 'w', newline='', encoding='utf-8') as f: # Encoding for names
+        output_path = args.training_pgn.parent / fname
+        with open(output_path, 'w', newline='', encoding='utf-8') as f: # Encoding for names
             writer = csv.DictWriter(f, fieldnames=['Player','Elo','s','c_fixed','AE','Moves','IPR'] + 
                                                ['INT','SLOPE','R2','AVG_ERR'])
             writer.writeheader()
