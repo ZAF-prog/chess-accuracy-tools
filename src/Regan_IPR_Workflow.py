@@ -696,12 +696,9 @@ def main():
             else:
                 r['IPR'] = 0.0
 
-        # Output AE Fit CSV
-        fname = f"{args.training_pgn.stem}_AE-fit.csv"
-        output_path = args.training_pgn.parent / fname
-        with open(output_path, 'w', newline='', encoding='utf-8') as f: # Encoding for names
-            writer = csv.DictWriter(f, fieldnames=['Player','Elo','s','c_fixed','AE','Moves','IPR'] + 
-                                               ['INT','SLOPE','R2','AVG_ERR'])
+        # Re-write entire CSV with IPR and regression stats now available
+        with open(output_path_b, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames_b)
             writer.writeheader()
             for i, r in enumerate(player_results):
                 row = r.copy()
