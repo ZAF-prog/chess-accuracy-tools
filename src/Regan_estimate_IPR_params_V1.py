@@ -342,6 +342,7 @@ def main():
     parser.add_argument("--engine", type=Path, default=get_default_engine_path(), help="Path to Stockfish")
     parser.add_argument("--cores", type=int, default=multiprocessing.cpu_count(), help="Parallel cores")
     parser.add_argument("--output", type=str, default="regeneration_params_stage1.csv", help="Output CSV path")
+    parser.add_argument("--verbose", action="store_true", help="Print heartbeat messages after every 10 moves")
     
     args = parser.parse_args()
     
