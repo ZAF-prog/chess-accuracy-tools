@@ -341,10 +341,14 @@ def main():
     parser.add_argument("--multipv", type=int, default=20, help="Multi-PV count (default 20)")
     parser.add_argument("--engine", type=Path, default=get_default_engine_path(), help="Path to Stockfish")
     parser.add_argument("--cores", type=int, default=multiprocessing.cpu_count(), help="Parallel cores")
-    parser.add_argument("--output", type=str, default="regeneration_params_stage1.csv", help="Output CSV path")
+    parser.add_argument("--output", type=str, help="Output CSV path (default: {input_base}_IPR-fit.csv)")
     parser.add_argument("--verbose", type=int, default=10, help="Print heartbeat messages after every N moves (0 to disable)")
     
     args = parser.parse_args()
+    
+    # Set default output name based on input list if not specified
+    if not args.output:
+        args.output = f"{args.buckets_list.stem}_IPR-fit.csv"
     
     if not args.buckets_list.exists():
         logger.error(f"Buckets list file not found: {args.buckets_list}")
