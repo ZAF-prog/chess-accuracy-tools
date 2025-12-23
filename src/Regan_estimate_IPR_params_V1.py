@@ -348,7 +348,8 @@ def main():
     
     # Set default output name based on input list if not specified
     if not args.output:
-        args.output = args.buckets_list.parent / f"{args.buckets_list.stem}_IPR-fit.csv"
+        suffix = f"_iterations={args.iterations}_depth={args.depth}_multipv={args.multipv}"
+        args.output = args.buckets_list.parent / f"{args.buckets_list.stem}_IPR-fit{suffix}.csv"
     else:
         args.output = Path(args.output)
     
