@@ -416,13 +416,26 @@ def main():
     bucket_stats = []
     for bf, moves in bucket_data_map.items():
         if not moves: continue
-        avg_elo_file = extract_elo_from_filename(bf.name)
-        avg_elo_actual = np.mean([m[2] for m in moves]) if moves else 0
-        target_elo = avg_elo_file if avg_elo_file else avg_elo_actual
+        
+        # Calculate actual Elo stats from moves
+        player_elos = [m[2] for m in moves if m[2] > 0]
+        if player_elos:
+            min_elo = int(np.min(player_elos))
+            max_elo = int(np.max(player_elos))
+            avg_elo = int(np.mean(player_elos))
+        else:
+            # Fallback to filename or default
+            file_elo = extract_elo_from_filename(bf.name)
+            avg_elo = file_elo if file_elo else 0
+            min_elo = avg_elo
+            max_elo = avg_elo
+
         bucket_stats.append({
             'path': bf,
             'name': bf.name,
-            'elo': target_elo,
+            'avg_elo': avg_elo,
+            'min_elo': min_elo,
+            'max_elo': max_elo,
             'moves': moves,
             's': 0.1, # Initial guess
             'c': 0.5, # Initial guess
@@ -438,7 +451,7 @@ def main():
         # Step A: Independent Fit for each bucket
         current_fits = []
         for b in bucket_stats:
-            logger.info(f"Fitting bucket: {b['name']} at Elo {b['elo']}")
+            logger.info(f"Fitting bucket: {b['name']} at AvgElo {b['avg_elo']}")
             initial = (b['s'], b['c'])
             res = fit_bucket_params(b['moves'], initial_guess=initial)
             if res is not None:
@@ -453,7 +466,7 @@ def main():
             break
             
         # Step B: Linear Regression
-        elos = [b['elo'] for b in current_fits]
+        elos = [b['avg_elo'] for b in current_fits]
         s_vals = [b['s'] for b in current_fits]
         c_vals = [b['c'] for b in current_fits]
         weights = [math.sqrt(b['n']) for b in current_fits]
@@ -472,21 +485,23 @@ def main():
         # Consistent with prompt: "If one or both regressions got R2>0.8, plug the fitted values as initial guesses"
         if r2s > 0.8 or r2c > 0.8:
             for b in bucket_stats:
-                b['s'] = ms * b['elo'] + bs
-                b['c'] = mc * b['elo'] + bc
+                b['s'] = ms * b['avg_elo'] + bs
+                b['c'] = mc * b['avg_elo'] + bc
         else:
             logger.info("  R2 below 0.8 threshold, keeping current fits as guesses.")
 
     # 4. Save Final Results
     with open(args.output, 'w', newline='') as f:
-        fieldnames = ['Bucket', 'Elo', 's', 'c', 'n_moves', 's_slope', 's_int', 's_r2', 'c_slope', 'c_int', 'c_r2']
+        fieldnames = ['Bucket', 'MinElo', 'MaxElo', 'AvgElo', 's', 'c', 'n_moves', 's_slope', 's_int', 's_r2', 'c_slope', 'c_int', 'c_r2']
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         
         for b in bucket_stats:
             row = {
                 'Bucket': b['name'],
-                'Elo': b['elo'],
+                'MinElo': b['min_elo'],
+                'MaxElo': b['max_elo'],
+                'AvgElo': b['avg_elo'],
                 's': b['s'],
                 'c': b['c'],
                 'n_moves': b['n'],
