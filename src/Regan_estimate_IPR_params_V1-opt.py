@@ -27,6 +27,7 @@ import csv
 import pickle
 import multiprocessing
 import traceback
+import psutil
 import numpy as np
 import chess
 import chess.engine
@@ -349,7 +350,8 @@ def main():
     parser.add_argument("--depth", type=int, default=13, help="Search depth (default 13)")
     parser.add_argument("--multipv", type=int, default=20, help="Multi-PV count (default 20)")
     parser.add_argument("--engine", type=Path, default=get_default_engine_path(), help="Path to Stockfish")
-    parser.add_argument("--cores", type=int, default=multiprocessing.cpu_count(), help="Parallel cores")
+    parser.add_argument("--cores", type=int, default=max(1, int(multiprocessing.cpu_count() * 0.8)), help="Parallel cores (default: 80%% of total)")
+    parser.add_argument("--memory-limit", type=int, default=60, help="Max system memory usage percent (default: 60%%)")
     parser.add_argument("--output", type=str, help="Output CSV path (default: {input_base}_IPR-fit.csv)")
     parser.add_argument("--verbose", type=int, default=10, help="Print heartbeat messages after every N moves (0 to disable)")
     
@@ -421,12 +423,27 @@ def main():
 
     # Run all chunks in one large pool to saturate CPU
     all_results = [[] for _ in range(len(all_pool_args))]
-    logger.info(f"Processing {len(all_pool_args)} total chunks across all buckets using {args.cores} cores.")
+    logger.info(f"Processing {len(all_pool_args)} total chunks across all buckets using {args.cores} cores (Target memory: <{args.memory_limit}%%).")
     
+    def check_memory():
+        """Wait if memory usage is too high."""
+        while psutil.virtual_memory().percent > args.memory_limit:
+            time.sleep(2)
+            
     with multiprocessing.Pool(processes=args.cores) as pool:
         # imap_unordered with index tracking to place results correctly
-        for i, chunk_res in pool.imap_unordered(process_pgn_chunk, all_pool_args):
-            all_results[i] = chunk_res
+        it = pool.imap_unordered(process_pgn_chunk, all_pool_args)
+        while True:
+            try:
+                check_memory()
+                res = next(it)
+                i, chunk_res = res
+                all_results[i] = chunk_res
+            except StopIteration:
+                break
+            except Exception as e:
+                logger.error(f"Error during parallel analysis: {e}")
+                raise
 
     # Assemble bucket data map
     bucket_data_map = {}
