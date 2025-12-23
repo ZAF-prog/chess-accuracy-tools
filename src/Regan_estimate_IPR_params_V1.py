@@ -235,7 +235,7 @@ def process_pgn_chunk(args):
                             p_elo = w_elo if board.turn == chess.WHITE else b_elo
                             results.append((values_cp, played_idx, p_elo))
                             moves_processed += 1
-                            if verbose and moves_processed % 10 == 0:
+                            if verbose > 0 and moves_processed % verbose == 0:
                                 logger.info(f"Chunk {chunk_id}: Processed {moves_processed} moves...")
                             
                         board.push(move)
@@ -342,7 +342,7 @@ def main():
     parser.add_argument("--engine", type=Path, default=get_default_engine_path(), help="Path to Stockfish")
     parser.add_argument("--cores", type=int, default=multiprocessing.cpu_count(), help="Parallel cores")
     parser.add_argument("--output", type=str, default="regeneration_params_stage1.csv", help="Output CSV path")
-    parser.add_argument("--verbose", action="store_true", help="Print heartbeat messages after every 10 moves")
+    parser.add_argument("--verbose", type=int, default=10, help="Print heartbeat messages after every N moves (0 to disable)")
     
     args = parser.parse_args()
     
