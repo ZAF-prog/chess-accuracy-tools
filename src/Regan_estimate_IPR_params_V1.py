@@ -149,8 +149,20 @@ def analyze_position(engine, board, depth, multipv):
 
 def process_pgn_chunk(args):
     """Worker function for parallel PGN processing."""
-    chunk_id, offsets, pgn_path, engine_path, depth, multipv, book_moves, cap_eval = args
+    chunk_id, offsets, pgn_path, engine_path, depth, multipv, book_moves, cap_eval, verbose, cache_dir = args
+    
+    # Check cache first
+    os.makedirs(cache_dir, exist_ok=True)
+    cache_file = Path(cache_dir) / f"chunk_{chunk_id}.pkl"
+    if cache_file.exists():
+        try:
+            with open(cache_file, 'rb') as f:
+                return pickle.load(f)
+        except Exception as e:
+            logger.warning(f"Failed to load cache {cache_file}: {e}. Rerunning...")
+
     results = []
+    moves_processed = 0
     
     try:
         with chess.engine.SimpleEngine.popen_uci(str(engine_path)) as engine:
@@ -222,11 +234,22 @@ def process_pgn_chunk(args):
                             # Store (values_cp, played_idx, current_player_elo)
                             p_elo = w_elo if board.turn == chess.WHITE else b_elo
                             results.append((values_cp, played_idx, p_elo))
+                            moves_processed += 1
+                            if verbose and moves_processed % 10 == 0:
+                                logger.info(f"Chunk {chunk_id}: Processed {moves_processed} moves...")
                             
                         board.push(move)
                         node = next_node
     except Exception as e:
         logger.error(f"Chunk {chunk_id} failed: {e}")
+        return []
+        
+    # Save to cache
+    try:
+        with open(cache_file, 'wb') as f:
+            pickle.dump(results, f)
+    except Exception as e:
+        logger.warning(f"Failed to save cache {cache_file}: {e}")
         
     return results
 
@@ -351,6 +374,11 @@ def main():
     for bf in bucket_files:
         logger.info(f"Processing bucket: {bf.name}")
         
+        # Define cache directory for this bucket and configuration
+        cache_root = bf.parent / ".ipr_cache"
+        cache_subdir = f"{bf.stem}_d{args.depth}_mpv{args.multipv}_b{DEFAULT_BOOK_MOVES}_c{DEFAULT_CAP_EVAL}"
+        bucket_cache_dir = cache_root / cache_subdir
+        
         # Get offsets for parallelization
         offsets = []
         with open(bf, 'rb') as f:
@@ -368,7 +396,7 @@ def main():
         pool_args = []
         for i in range(0, len(offsets), chunk_size):
             chunk = offsets[i : i + chunk_size]
-            pool_args.append((i, chunk, bf, args.engine, args.depth, args.multipv, DEFAULT_BOOK_MOVES, DEFAULT_CAP_EVAL))
+            pool_args.append((i, chunk, bf, args.engine, args.depth, args.multipv, DEFAULT_BOOK_MOVES, DEFAULT_CAP_EVAL, args.verbose, bucket_cache_dir))
             
         bucket_results = []
         with multiprocessing.Pool(processes=args.cores) as pool:
