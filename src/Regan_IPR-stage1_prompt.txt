@@ -1,0 +1,36 @@
+ Implement into a Python program,
+ 'C:\Users\Public\Github\chess-accuracy-tools\src\Regan_estimate_IPR_params_V1.py',
+ the first stage of the algo described above: determining s,c parameter pairs across a range of known Elo ratings.
+ Use Stockfish engine for evaluations, with path given as:
+
+def get_default_engine_path():
+    system = platform.system()
+    if system == "Windows":
+        return Path(r"C:\Users\Public\Libraries\stockfish\stockfish-windows-x86-64-avx2.exe")
+    return Path("stockfish")
+
+ Consider relevant parts of the code from
+ 'C:\Users\Public\Github\chess-accuracy-tools\src\Regan_IPR_Workflow_V2.py'
+ for guidance on calculations - but do not take the code as-is, since that program did not work well (parameter estimates were poor).
+
+ At this stage, focus on getting robust estimation for c,s parameters, from the 'buckets' collections of games (each of which has all players in a narrow range of ratings). The list of these input files are given in a text file on the calling commandlie, with example contents as;
+
+C:\Users\Public\Github\chess-accuracy-tools\data\LumbrasGigabase_OTB_ELO~2150_HalfMoves40-Date2006.01.01-2009.12.31_MinGames=3.pgn
+C:\Users\Public\Github\chess-accuracy-tools\data\LumbrasGigabase_OTB_ELO~2200_HalfMoves40-Date2006.01.01-2009.12.31_MinGames=3.pgn
+C:\Users\Public\Github\chess-accuracy-tools\data\LumbrasGigabase_OTB_ELO~2300_HalfMoves40-Date2006.01.01-2009.12.31_MinGames=3.pgn
+C:\Users\Public\Github\chess-accuracy-tools\data\LumbrasGigabase_OTB_ELO~2400_HalfMoves40-Date2006.01.01-2009.12.31_MinGames=4.pgn
+C:\Users\Public\Github\chess-accuracy-tools\data\LumbrasGigabase_OTB_ELO~2500_HalfMoves40-Date2006.01.01-2009.12.31_MinGames=3.pgn
+C:\Users\Public\Github\chess-accuracy-tools\data\LumbrasGigabase_OTB_ELO~2600_HalfMoves40-Date2006.01.01-2009.12.31_MinGames=4.pgn
+C:\Users\Public\Github\chess-accuracy-tools\data\LumbrasGigabase_OTB_ELO~2700_HalfMoves40-Date2006.01.01-2009.12.31_MinGames=5.pgn
+C:\Users\Public\Github\chess-accuracy-tools\data\LumbrasGigabase_OTB_ELO~2750_HalfMoves40-Date2006.01.01-2009.12.31_MinGames=15.pgn
+
+ Set up a procedure for estimating linearly consistent s & c dependence on the Elo.
+ That is, after an initial independent fitting
+ (using the model `log(1/p_i) / log(1/p_0) = exp(-((δ_i/s)**c))`) of s & c pairs for each Elo range,
+ run linear regressions (reweighted IRWLS) s-vs-Elo & c-vs-Elo. If one or both regressions got R2>0.8,
+ plug the fitted values as initial guesses into a new round of estimating, then re-run the IRWLS.
+ Take parameter '--iterations' for the number of such cycles (default: 2).
+
+ Write the output into CSV file, as seen in 
+ 'C:\Users\Public\Github\chess-accuracy-tools\src\Regan_IPR_Workflow_V2.py'.
+
