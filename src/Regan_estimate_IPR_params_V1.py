@@ -348,7 +348,9 @@ def main():
     
     # Set default output name based on input list if not specified
     if not args.output:
-        args.output = f"{args.buckets_list.stem}_IPR-fit.csv"
+        args.output = args.buckets_list.parent / f"{args.buckets_list.stem}_IPR-fit.csv"
+    else:
+        args.output = Path(args.output)
     
     if not args.buckets_list.exists():
         logger.error(f"Buckets list file not found: {args.buckets_list}")
