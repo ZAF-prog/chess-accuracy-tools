@@ -410,13 +410,15 @@ def main():
             logger.warning(f"No games found in {bf.name}")
             continue
             
-        chunk_size = max(1, len(offsets) // (args.cores * 2))
+        GAMES_PER_CHUNK = 20
         bucket_chunk_indices = []
-        for i in range(0, len(offsets), chunk_size):
-            chunk = offsets[i : i + chunk_size]
-            idx = len(all_pool_args)
-            all_pool_args.append((idx, chunk, bf, args.engine, args.depth, args.multipv, DEFAULT_BOOK_MOVES, DEFAULT_CAP_EVAL, args.verbose, bucket_cache_dir))
-            bucket_chunk_indices.append(idx)
+        for i in range(0, len(offsets), GAMES_PER_CHUNK):
+            chunk = offsets[i : i + GAMES_PER_CHUNK]
+            
+            # Use deterministic chunk identifier based on bucket name and start index
+            chunk_global_id = len(all_pool_args)
+            all_pool_args.append((chunk_global_id, chunk, bf, args.engine, args.depth, args.multipv, DEFAULT_BOOK_MOVES, DEFAULT_CAP_EVAL, args.verbose, bucket_cache_dir))
+            bucket_chunk_indices.append(chunk_global_id)
         
         bucket_chunk_map[bf] = bucket_chunk_indices
 
