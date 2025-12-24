@@ -171,10 +171,17 @@ def process_pgn_chunk(args):
     """Worker function for parallel PGN processing."""
     chunk_id, offsets, pgn_path, engine_path, depth, multipv, book_moves, cap_eval, verbose, cache_dir = args
     
+    # Proactive memory check: wait if system memory is very high
+    # We use a slightly higher threshold in worker than main to avoid deadlocks
+    while psutil.virtual_memory().percent > 85:
+        time.sleep(5)
+
     try:
         # Check cache first
         os.makedirs(cache_dir, exist_ok=True)
-        cache_file = Path(cache_dir) / f"chunk_{chunk_id}.pkl"
+        # Use starting offset for fully deterministic and portable cache naming
+        start_offset = offsets[0] if offsets else 0
+        cache_file = Path(cache_dir) / f"chunk_start_{start_offset}.pkl"
         if cache_file.exists():
             try:
                 with open(cache_file, 'rb') as f:
