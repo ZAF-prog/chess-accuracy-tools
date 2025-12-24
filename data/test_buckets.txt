@@ -1,0 +1,3 @@
+LumbrasGigabase_OTB_ELO~2150_HalfMoves40-Date2006.01.01-2009.12.31_MinGames=3.pgn
+LumbrasGigabase_OTB_ELO~2200_HalfMoves40-Date2006.01.01-2009.12.31_MinGames=3.pgn
+LumbrasGigabase_OTB_ELO~2300_HalfMoves40-Date2006.01.01-2009.12.31_MinGames=3.pgn
