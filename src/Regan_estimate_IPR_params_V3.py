@@ -557,41 +557,58 @@ def main():
     all_results = [[] for _ in range(len(all_pool_args))]
     logger.info(f"Processing {len(all_pool_args)} total chunks across all buckets using {args.cores} cores (Target memory: <{args.memory_limit}%%).")
     
-    def check_memory():
+    def check_memory(processed_chunks, total_chunks):
         """Aggressively manage memory by reducing worker hash size if limit exceeded."""
         gc.collect() # Proactive cleanup
         current = psutil.virtual_memory().percent
         if current > args.memory_limit:
-            # Try reducing hash before waiting
+            can_reduce = False
             with shared_hash_val.get_lock():
                 if shared_hash_val.value > MIN_HASH_LIMIT:
                     old_h = shared_hash_val.value
                     new_h = max(MIN_HASH_LIMIT, old_h // 2)
                     shared_hash_val.value = new_h
                     logger.warning(f"Memory high ({current}%). Proactively reducing worker hash {old_h}MB -> {new_h}MB to continue...")
+                    can_reduce = True
                 else:
-                    logger.warning(f"Memory high ({current}%) and hash is already at floor ({MIN_HASH_LIMIT}MB). Waiting for pool to free memory...")
+                    logger.warning(f"Memory high ({current}%) and hash is already at floor ({MIN_HASH_LIMIT}MB).")
             
-            while psutil.virtual_memory().percent > args.memory_limit:
-                time.sleep(5)
-            logger.info(f"Memory cleared ({psutil.virtual_memory().percent}%). Resuming...")
+            if can_reduce:
+                # Wait for active workers to potentially pick up the change
+                # But limit the wait to avoid deadlocks with idle workers
+                max_wait = 3 # 3 cycles * 5s = 15s max wait
+                for i in range(max_wait):
+                    time.sleep(5)
+                    current_post = psutil.virtual_memory().percent
+                    if current_post <= args.memory_limit:
+                        logger.info(f"Memory cleared ({current_post}%). Resuming...")
+                        return
+                    logger.info(f"Waiting for workers to adjust hash ({current_post}%)... ({i+1}/{max_wait})")
+                logger.warning(f"Memory still high ({psutil.virtual_memory().percent}%) after waiting. Proceeding to prevent deadlock.")
+            else:
+                # Already at floor. Proceeding is the only way to eventually reach the end and close the pool.
+                if processed_chunks < total_chunks:
+                    logger.warning(f"Memory high ({current}%) but hash is already at floor. Pushing through to finish {total_chunks - processed_chunks} remaining chunks...")
             
     with multiprocessing.Pool(processes=args.cores, initializer=init_worker, initargs=(args.engine, shared_hash_val)) as pool:
         # imap_unordered with index tracking to place results correctly
         it = pool.imap_unordered(process_pgn_chunk, all_pool_args)
-        while True:
+        processed_chunks = 0
+        total_chunks = len(all_pool_args)
+        
+        while processed_chunks < total_chunks:
             try:
-                check_memory()
+                check_memory(processed_chunks, total_chunks)
                 res = next(it)
                 i, chunk_res = res
                 all_results[i] = chunk_res
+                processed_chunks += 1
+                if processed_chunks % 5 == 0 or processed_chunks == total_chunks:
+                    logger.info(f"  Analysis Progress: {processed_chunks}/{total_chunks} chunks completed.")
             except StopIteration:
                 break
             except Exception as e:
-                logger.error(f"Error during parallel analysis: {e}")
-                # Clean up if engine was started
-                if _worker_engine:
-                    _worker_engine.quit()
+                logger.error(f"Error during parallel analysis loop: {e}")
                 raise
 
     # Assemble bucket data map
