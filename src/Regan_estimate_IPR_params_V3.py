@@ -44,7 +44,7 @@ DEFAULT_CAP_EVAL = 300
 MATE_SCORE = 10000
 TOTAL_HASH_BUDGET = 6144  # 6GB in MB
 MIN_HASH_LIMIT = 64
-ESTIMATED_PROCESS_OVERHEAD_MB = 100 # Approx RAM for Python + Engine binary
+ESTIMATED_PROCESS_OVERHEAD_MB = 200 # Approx RAM for Python + Engine binary + Stack
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -155,24 +155,37 @@ def calculate_move_probabilities_vec(datasets: List[Tuple[np.ndarray, int]], s: 
 # Global shared state for worker processes
 _worker_engine = None
 _current_worker_hash = None
-_shared_hash_val = None # Global synchronization object
+_shared_hash_val = None
+_concurrency_limiter = None
+_engine_path = None
 
-def init_worker(engine_path, shared_hash_val):
-    global _worker_engine, _current_worker_hash, _shared_hash_val
+def init_worker(engine_path, shared_hash_val, concurrency_limiter):
+    global _worker_engine, _current_worker_hash, _shared_hash_val, _concurrency_limiter, _engine_path
     try:
-        _worker_engine = chess.engine.SimpleEngine.popen_uci(str(engine_path))
+        _engine_path = engine_path
         _shared_hash_val = shared_hash_val
+        _concurrency_limiter = concurrency_limiter
         _current_worker_hash = _shared_hash_val.value
-        # Explicitly set 1 thread and the initial hash
-        _worker_engine.configure({"Threads": 1, "Hash": _current_worker_hash})
+        
+        # We don't start the engine immediately to save memory if throttled at start
+        # Recreate engine on first analysis call
+        _worker_engine = None 
     except Exception as e:
-        logger.error(f"Failed to initialize engine in worker: {e}")
+        logger.error(f"Failed to initialize worker state: {e}")
 
 def analyze_position(board, depth, multipv):
     """Analyze a single position using the global worker engine, adjusting hash if needed."""
-    global _worker_engine, _current_worker_hash, _shared_hash_val
-    if _worker_engine is None or _shared_hash_val is None:
-        return None
+    global _worker_engine, _current_worker_hash, _shared_hash_val, _engine_path
+    
+    # Lazy engine initialization / Restoration after hibernation
+    if _worker_engine is None:
+        try:
+            _worker_engine = chess.engine.SimpleEngine.popen_uci(str(_engine_path))
+            _current_worker_hash = _shared_hash_val.value
+            _worker_engine.configure({"Threads": 1, "Hash": _current_worker_hash})
+        except Exception as e:
+            logger.error(f"Failed to start/restore engine: {e}")
+            return None
     
     # Check for dynamic hash update
     try:
@@ -301,6 +314,22 @@ def process_pgn_chunk(args):
                 
                 # Checkpoint after each game
                 processed_offsets.add(offset)
+                gc.collect() # Proactive cleanup after each game
+                
+                # Check for throttling before next game
+                try:
+                    global _concurrency_limiter, _worker_engine
+                    if not _concurrency_limiter.acquire(block=False):
+                        # We are being throttled. Free engine memory and wait.
+                        if _worker_engine:
+                            _worker_engine.quit()
+                            _worker_engine = None
+                        _concurrency_limiter.acquire() # Block until slot available
+                    else:
+                        _concurrency_limiter.release() # We have a slot
+                except Exception:
+                    pass
+
                 try:
                     with open(cache_file, 'wb') as checkpoint_f:
                         pickle.dump({'results': results, 'processed_offsets': processed_offsets}, checkpoint_f)
@@ -423,27 +452,43 @@ def main():
     
     args = parser.parse_args()
     
-    # Memory Safety Guard: Calculate available budget for 85% target
+    # Memory Safety Guard: Calculate available budget and scale workers/hash
     mem = psutil.virtual_memory()
     total_ram_mb = mem.total // (1024 * 1024)
     used_ram_mb = mem.used // (1024 * 1024)
-    # Target 85% of total RAM as maximum "safe" ceiling
-    safe_ceiling_mb = int(total_ram_mb * 0.85)
-    # Account for process overhead (Python objects + Engine binaries)
-    total_overhead_mb = args.cores * ESTIMATED_PROCESS_OVERHEAD_MB
-    # Budget remaining for Hash before hitting the ceiling
-    safety_budget_mb = max(0, safe_ceiling_mb - used_ram_mb - total_overhead_mb)
+    # Use the user-provided memory limit (default 85%)
+    target_limit = args.memory_limit
+    safe_ceiling_mb = int(total_ram_mb * target_limit / 100.0)
+    available_mb = max(0, safe_ceiling_mb - used_ram_mb)
     
-    effective_budget = TOTAL_HASH_BUDGET
-    if effective_budget > safety_budget_mb:
-        effective_budget = safety_budget_mb
-        logger.warning(f"Memory Safety Guard: Capping total hash budget to {effective_budget}MB to maintain <85% system usage (Safety Budget: {safety_budget_mb}MB, Overhead: {total_overhead_mb}MB).")
-
-    # Calculate initial hash if not explicitly provided
-    if args.hash is None:
-        args.hash = max(MIN_HASH_LIMIT, effective_budget // args.cores)
+    # We must fit: Cores * (Hash + Overhead) <= available_mb
+    # Min requirement per core
+    min_per_core = MIN_HASH_LIMIT + ESTIMATED_PROCESS_OVERHEAD_MB
     
-    logger.info(f"Memory Management: Using {args.cores} workers, {args.hash}MB hash each (Total hash pool: {args.cores * args.hash}MB, Floor: {MIN_HASH_LIMIT}MB)")
+    if available_mb < min_per_core:
+        logger.warning(f"Memory Safety Guard: System already near limit ({mem.percent}%). Reducing to 1 worker and {MIN_HASH_LIMIT}MB hash.")
+        args.cores = 1
+        args.hash = MIN_HASH_LIMIT
+    else:
+        max_possible_cores = available_mb // min_per_core
+        if args.cores > max_possible_cores:
+            logger.warning(f"Memory Safety Guard: Reducing workers {args.cores} -> {max_possible_cores} to stay under {target_limit}% RAM.")
+            args.cores = max(1, int(max_possible_cores))
+        
+        # Calculate optimal hash (up to TOTAL_HASH_BUDGET/cores)
+        overhead_sum = args.cores * ESTIMATED_PROCESS_OVERHEAD_MB
+        hash_pool_available = available_mb - overhead_sum
+        max_h = hash_pool_available // args.cores
+        
+        # Preferred hash (either from args.hash or distributed TOTAL_HASH_BUDGET)
+        if args.hash is None:
+            preferred_h = TOTAL_HASH_BUDGET // args.cores
+        else:
+            preferred_h = args.hash
+            
+        args.hash = max(MIN_HASH_LIMIT, min(preferred_h, max_h))
+    
+    logger.info(f"Memory Management: Using {args.cores} workers, {args.hash}MB hash each (Total hash: {args.cores * args.hash}MB, Overhead: {args.cores * ESTIMATED_PROCESS_OVERHEAD_MB}MB)")
     
     # Set default output name based on input list if not specified
     if not args.output:
@@ -562,10 +607,24 @@ def main():
     all_results = [[] for _ in range(len(all_pool_args))]
     logger.info(f"Processing {len(all_pool_args)} total chunks across all buckets using {args.cores} cores (Target memory: <{args.memory_limit}%%).")
     
+    # Shared objects for dynamic control
+    shared_hash_val = multiprocessing.Value('i', args.hash)
+    concurrency_limiter = multiprocessing.Semaphore(args.cores)
+    stolen_permits = [] # Permits we've taken to throttle
+    
     def check_memory(processed_chunks, total_chunks):
-        """Aggressively manage memory by reducing worker hash size if limit exceeded."""
-        gc.collect() # Proactive cleanup
+        """Aggressively manage memory by reducing worker hash size and workers count."""
+        gc.collect() 
         current = psutil.virtual_memory().percent
+        
+        # 1. Critical Level: Throttling Worker Concurrency
+        if current > min(95.0, args.memory_limit + 5.0):
+            if len(stolen_permits) < args.cores - 1:
+                if concurrency_limiter.acquire(block=False):
+                    stolen_permits.append(True)
+                    logger.warning(f"Memory critical ({current}%). Throttling concurrency: {args.cores - len(stolen_permits)} active workers remaining.")
+        
+        # 2. High Level: Reducing Hash Size
         if current > args.memory_limit:
             can_reduce = False
             with shared_hash_val.get_lock():
@@ -579,23 +638,27 @@ def main():
                     logger.warning(f"Memory high ({current}%) and hash is already at floor ({MIN_HASH_LIMIT}MB).")
             
             if can_reduce:
-                # Wait for active workers to potentially pick up the change
-                # But limit the wait to avoid deadlocks with idle workers
-                max_wait = 3 # 3 cycles * 5s = 15s max wait
+                max_wait = 3 
                 for i in range(max_wait):
                     time.sleep(5)
                     current_post = psutil.virtual_memory().percent
                     if current_post <= args.memory_limit:
                         logger.info(f"Memory cleared ({current_post}%). Resuming...")
                         return
-                    logger.info(f"Waiting for workers to adjust hash ({current_post}%)... ({i+1}/{max_wait})")
-                logger.warning(f"Memory still high ({psutil.virtual_memory().percent}%) after waiting. Proceeding to prevent deadlock.")
+                    logger.info(f"Waiting for hash reduction effect ({current_post}%)... ({i+1}/{max_wait})")
+                logger.warning(f"Memory still high ({psutil.virtual_memory().percent}%) after waiting.")
             else:
-                # Already at floor. Proceeding is the only way to eventually reach the end and close the pool.
                 if processed_chunks < total_chunks:
-                    logger.warning(f"Memory high ({current}%) but hash is already at floor. Pushing through to finish {total_chunks - processed_chunks} remaining chunks...")
+                    logger.warning(f"Memory high ({current}%) but already at floor. Pushing through ({total_chunks - processed_chunks} chunks left)...")
+        
+        # 3. Healthy Level: Restoring Concurrency
+        elif current < args.memory_limit - 10.0:
+            if stolen_permits:
+                concurrency_limiter.release()
+                stolen_permits.pop()
+                logger.info(f"Memory healthy ({current}%). Restoring concurrency: {args.cores - len(stolen_permits)} active workers available.")
             
-    with multiprocessing.Pool(processes=args.cores, initializer=init_worker, initargs=(args.engine, shared_hash_val)) as pool:
+    with multiprocessing.Pool(processes=args.cores, initializer=init_worker, initargs=(args.engine, shared_hash_val, concurrency_limiter)) as pool:
         # imap_unordered with index tracking to place results correctly
         it = pool.imap_unordered(process_pgn_chunk, all_pool_args)
         processed_chunks = 0
