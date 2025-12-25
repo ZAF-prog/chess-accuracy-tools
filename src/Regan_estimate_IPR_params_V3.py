@@ -216,6 +216,7 @@ def analyze_position(board, depth, multipv):
 def process_pgn_chunk(args):
     """Worker function for parallel PGN processing."""
     chunk_id, offsets, pgn_path, depth, multipv, book_moves, cap_eval, verbose, cache_dir = args
+    cache_file = Path(cache_dir) / f"chunk_{chunk_id}.pkl"
     
 
     try:
