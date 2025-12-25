@@ -451,6 +451,13 @@ def main():
     shared_hash_val = multiprocessing.Value('i', args.hash)
     
     for bf in bucket_files:
+        # Initialize bucket stats entry
+        bucket_stats.append({
+            'name': bf.name,
+            'path': bf,
+            'start_time': time.time()
+        })
+        
         # Define cache directory for this bucket and configuration
         cache_root = bf.parent / ".ipr_cache"
         cache_subdir = f"{bf.stem}_d{args.depth}_mpv{args.multipv}_b{DEFAULT_BOOK_MOVES}_c{DEFAULT_CAP_EVAL}"
@@ -478,10 +485,15 @@ def main():
                 # Search for [Event in the buffer
                 idx = -1
                 while True:
-                    idx = data.find(b'\n[Event ', idx + 1)
+                    # Look for [Event at the start of a line. 
+                    # We check for \n[Event or if it's the very beginning of the file.
+                    idx = data.find(b'[Event ', idx + 1)
                     if idx == -1:
                         break
-                    offsets.append(pos + idx + 1) # +1 for the \n
+                    
+                    # Ensure it's preceded by a newline or start of file
+                    if idx == 0 or data[idx-1] == ord('\n') or data[idx-1] == ord('\r'):
+                        offsets.append(pos + idx)
                 
                 pos += len(data)
                 # Backup slightly to handle tags split across chunks
@@ -490,6 +502,9 @@ def main():
                     f.seek(pos)
                 else:
                     break
+        
+        # Remove duplicates in case backup caused overlaps
+        offsets = sorted(list(set(offsets)))
         
         logger.info(f"  Found {len(offsets)} games.")
         
@@ -572,12 +587,15 @@ def main():
             min_elo = avg_elo
             max_elo = avg_elo
             
+        # bucket_stats was populated in the same order as bucket_files loop
         bucket_stats[b_idx].update({
             'avg_elo': avg_elo,
             'min_elo': min_elo,
             'max_elo': max_elo,
             'n': len(moves),
-            'moves': moves
+            'moves': moves,
+            's': 0.1, # Initial guess defaults
+            'c': 0.5
         })
         logger.info(f"Bucket {bf.name}: Analyzed {len(bucket_results)} eligible moves")
 
