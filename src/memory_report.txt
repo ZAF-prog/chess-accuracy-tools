@@ -1,0 +1,37 @@
+﻿--- Overall Memory ---
+Total RAM: 16055.05 MB
+Used RAM: 9583.54 MB
+Used %: 59.69%
+
+--- Kernel and Cache ---
+Non-paged Pool: 1170.88 MB
+Paged Pool:     1585.3 MB
+System Cache:   241.51 MB
+
+--- Top 20 Processes by Working Set ---
+language_server_windows_x64 (  8064):   451.99 MB
+Antigravity               ( 21780):   443.01 MB
+Memory Compression        (  4400):   371.07 MB
+Antigravity               ( 18956):   293.31 MB
+msedge                    ( 31104):   234.75 MB
+msedge                    (  4000):   202.26 MB
+msedge                    ( 21104):   198.82 MB
+msedge                    (  8228):   195.75 MB
+msedge                    ( 24448):   190.01 MB
+msedge                    ( 34768):   171.03 MB
+VNSecureAccessWindowsEIPService (  7300):   167.16 MB
+powershell                ( 34336):   153.38 MB
+explorer                  (  6700):   149.56 MB
+Antigravity               ( 22828):   135.71 MB
+ccSvcHst                  (  7000):   134.93 MB
+Antigravity               ( 27604):    134.8 MB
+ccSvcHst                  (  7108):   109.62 MB
+msedge                    ( 16496):   106.43 MB
+Antigravity               ( 25184):   101.03 MB
+ShellExperienceHost       ( 16388):    96.73 MB
+
+--- Orphaned/Relevant Processes Search (Stockfish, Python) ---
+python                    ( 17820):     3.91 MB
+python                    ( 22524):    56.33 MB
+python                    ( 29644):     3.59 MB
+python                    ( 30428):    18.41 MB

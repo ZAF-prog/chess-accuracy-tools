@@ -12,7 +12,7 @@ Methodology:
 - Consistency: Iterative linear regression (IRWLS) with feedback.
 
 Usage:
-    python Regan_estimate_IPR_params_V1.py buckets.txt --iterations 2 --depth 13
+    python Regan_estimate_IPR_params_V3.py buckets.txt --iterations 2 --depth 13
 """
 
 import os
@@ -208,19 +208,42 @@ def process_pgn_chunk(args):
     try:
         os.makedirs(cache_dir, exist_ok=True)
         start_offset = offsets[0] if offsets else 0
-        cache_file = Path(cache_dir) / f"chunk_start_{start_offset}.pkl"
+        processed_offsets = set()
+        results = []
         if cache_file.exists():
             try:
                 with open(cache_file, 'rb') as f:
-                    return chunk_id, pickle.load(f)
+                    data = pickle.load(f)
+                    if isinstance(data, dict):
+                        results = data.get('results', [])
+                        processed_offsets = data.get('processed_offsets', set())
+                    elif isinstance(data, list):
+                        # Backward compatibility for old format
+                        results = data
+                        # We don't know which offsets were processed in the list, 
+                        # so we'll have to re-process if it was partial. 
+                        # But if the chunk was finished, this is fine.
+                        # Since we didn't save the offsets, we'll assume the list 
+                        # length corresponds to the games in the chunk.
+                        # For safety, if it's a list, we only use it if it's "complete"
+                        # relative to the full offsets list (approx).
+                        # Actually, let's just treat list as potentially complete.
+                        pass
+                    
+                if len(processed_offsets) >= len(offsets):
+                    logger.info(f"Chunk {chunk_id}: Fully loaded from cache.")
+                    return chunk_id, results
+                elif processed_offsets:
+                    logger.info(f"Chunk {chunk_id}: Resuming from checkpoint ({len(processed_offsets)}/{len(offsets)} games).")
             except Exception as e:
                 logger.warning(f"Failed to load cache {cache_file}: {e}. Rerunning...")
-
-        results = []
         moves_processed = 0
         
         with open(pgn_path, 'r', encoding='utf-8') as f:
-            for offset in offsets:
+            for game_idx, offset in enumerate(offsets):
+                if offset in processed_offsets:
+                    continue
+                
                 f.seek(offset)
                 game = chess.pgn.read_game(f)
                 if not game: continue
@@ -275,12 +298,17 @@ def process_pgn_chunk(args):
                             logger.info(f"Chunk {chunk_id}: Processed {moves_processed} moves...")
                     board.push(move)
                     node = next_node
+                
+                # Checkpoint after each game
+                processed_offsets.add(offset)
+                try:
+                    with open(cache_file, 'wb') as checkpoint_f:
+                        pickle.dump({'results': results, 'processed_offsets': processed_offsets}, checkpoint_f)
+                    if (game_idx + 1) % 5 == 0: # Log every 5 games to avoid spam
+                        logger.info(f"Chunk {chunk_id}: Checkpoint saved ({game_idx + 1}/{len(offsets)} games)")
+                except Exception as e:
+                    logger.warning(f"Failed to save checkpoint {cache_file}: {e}")
         
-        try:
-            with open(cache_file, 'wb') as f:
-                pickle.dump(results, f)
-        except Exception as e:
-            logger.warning(f"Failed to save cache {cache_file}: {e}")
         return chunk_id, results
 
     except Exception:
@@ -383,19 +411,19 @@ def main():
     parser.add_argument("--multipv", type=int, default=20, help="Multi-PV count (default 20)")
     parser.add_argument("--engine", type=Path, default=get_default_engine_path(), help="Path to Stockfish")
     parser.add_argument("--cores", type=int, default=max(1, int(multiprocessing.cpu_count() * 0.8)), help="Parallel cores (default: 80%% of total)")
-    parser.add_argument("--memory-limit", type=int, default=75, help="Max system memory usage percent (default: 75%%)")
+    parser.add_argument("--memory-limit", type=int, default=85, help="Max system memory usage percent (default: 85%%)")
     parser.add_argument("--hash", type=int, help=f"Initial Stockfish hash size in MB (default: capped 6GB pool / cores, min {MIN_HASH_LIMIT})")
     parser.add_argument("--output", type=str, help="Output CSV path (default: {input_base}_IPR-fit.csv)")
     parser.add_argument("--verbose", type=int, default=10, help="Print heartbeat messages after every N moves (0 to disable)")
     
     args = parser.parse_args()
     
-    # Memory Safety Guard: Calculate available budget for 75% target
+    # Memory Safety Guard: Calculate available budget for 85% target
     mem = psutil.virtual_memory()
     total_ram_mb = mem.total // (1024 * 1024)
     used_ram_mb = mem.used // (1024 * 1024)
-    # Target 75% of total RAM as maximum "safe" ceiling
-    safe_ceiling_mb = int(total_ram_mb * 0.75)
+    # Target 85% of total RAM as maximum "safe" ceiling
+    safe_ceiling_mb = int(total_ram_mb * 0.85)
     # Account for process overhead (Python objects + Engine binaries)
     total_overhead_mb = args.cores * ESTIMATED_PROCESS_OVERHEAD_MB
     # Budget remaining for Hash before hitting the ceiling
@@ -404,7 +432,7 @@ def main():
     effective_budget = TOTAL_HASH_BUDGET
     if effective_budget > safety_budget_mb:
         effective_budget = safety_budget_mb
-        logger.warning(f"Memory Safety Guard: Capping total hash budget to {effective_budget}MB to maintain <75% system usage (Safety Budget: {safety_budget_mb}MB, Overhead: {total_overhead_mb}MB).")
+        logger.warning(f"Memory Safety Guard: Capping total hash budget to {effective_budget}MB to maintain <85% system usage (Safety Budget: {safety_budget_mb}MB, Overhead: {total_overhead_mb}MB).")
 
     # Calculate initial hash if not explicitly provided
     if args.hash is None:
