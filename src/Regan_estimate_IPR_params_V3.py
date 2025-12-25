@@ -25,6 +25,7 @@ import platform
 import logging
 import csv
 import pickle
+import gc
 import multiprocessing
 import traceback
 import psutil
@@ -43,6 +44,7 @@ DEFAULT_CAP_EVAL = 300
 MATE_SCORE = 10000
 TOTAL_HASH_BUDGET = 6144  # 6GB in MB
 MIN_HASH_LIMIT = 64
+ESTIMATED_PROCESS_OVERHEAD_MB = 100 # Approx RAM for Python + Engine binary
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -161,7 +163,8 @@ def init_worker(engine_path, shared_hash_val):
         _worker_engine = chess.engine.SimpleEngine.popen_uci(str(engine_path))
         _shared_hash_val = shared_hash_val
         _current_worker_hash = _shared_hash_val.value
-        _worker_engine.configure({"Hash": _current_worker_hash})
+        # Explicitly set 1 thread and the initial hash
+        _worker_engine.configure({"Threads": 1, "Hash": _current_worker_hash})
     except Exception as e:
         logger.error(f"Failed to initialize engine in worker: {e}")
 
@@ -380,26 +383,28 @@ def main():
     parser.add_argument("--multipv", type=int, default=20, help="Multi-PV count (default 20)")
     parser.add_argument("--engine", type=Path, default=get_default_engine_path(), help="Path to Stockfish")
     parser.add_argument("--cores", type=int, default=max(1, int(multiprocessing.cpu_count() * 0.8)), help="Parallel cores (default: 80%% of total)")
-    parser.add_argument("--memory-limit", type=int, default=80, help="Max system memory usage percent (default: 80%%)")
+    parser.add_argument("--memory-limit", type=int, default=75, help="Max system memory usage percent (default: 75%%)")
     parser.add_argument("--hash", type=int, help=f"Initial Stockfish hash size in MB (default: capped 6GB pool / cores, min {MIN_HASH_LIMIT})")
     parser.add_argument("--output", type=str, help="Output CSV path (default: {input_base}_IPR-fit.csv)")
     parser.add_argument("--verbose", type=int, default=10, help="Print heartbeat messages after every N moves (0 to disable)")
     
     args = parser.parse_args()
     
-    # Memory Safety Guard: Calculate available budget for 80% target
+    # Memory Safety Guard: Calculate available budget for 75% target
     mem = psutil.virtual_memory()
     total_ram_mb = mem.total // (1024 * 1024)
     used_ram_mb = mem.used // (1024 * 1024)
-    # Target 80% of total RAM as maximum "safe" ceiling
-    safe_ceiling_mb = int(total_ram_mb * 0.8)
-    # Budget remaining before hitting the ceiling
-    safety_budget_mb = max(0, safe_ceiling_mb - used_ram_mb)
+    # Target 75% of total RAM as maximum "safe" ceiling
+    safe_ceiling_mb = int(total_ram_mb * 0.75)
+    # Account for process overhead (Python objects + Engine binaries)
+    total_overhead_mb = args.cores * ESTIMATED_PROCESS_OVERHEAD_MB
+    # Budget remaining for Hash before hitting the ceiling
+    safety_budget_mb = max(0, safe_ceiling_mb - used_ram_mb - total_overhead_mb)
     
     effective_budget = TOTAL_HASH_BUDGET
     if effective_budget > safety_budget_mb:
         effective_budget = safety_budget_mb
-        logger.warning(f"Memory Safety Guard: Capping total hash budget to {effective_budget}MB to maintain <80% system usage (Safety Budget: {safety_budget_mb}MB).")
+        logger.warning(f"Memory Safety Guard: Capping total hash budget to {effective_budget}MB to maintain <75% system usage (Safety Budget: {safety_budget_mb}MB, Overhead: {total_overhead_mb}MB).")
 
     # Calculate initial hash if not explicitly provided
     if args.hash is None:
@@ -511,6 +516,7 @@ def main():
     
     def check_memory():
         """Aggressively manage memory by reducing worker hash size if limit exceeded."""
+        gc.collect() # Proactive cleanup
         current = psutil.virtual_memory().percent
         if current > args.memory_limit:
             # Try reducing hash before waiting
@@ -629,6 +635,8 @@ def main():
             if r2c > 0.8:
                 for b in bucket_stats:
                     b['c'] = mc * b['avg_elo'] + bc
+            
+            gc.collect() # Cleanup after each IRWLS iteration
 
         # Step D: Outlier Inspection
         current_fits = [b for b in bucket_stats if 's' in b and 'c' in b]
