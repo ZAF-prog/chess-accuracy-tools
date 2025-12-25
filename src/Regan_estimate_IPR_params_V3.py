@@ -379,18 +379,23 @@ def fit_bucket_params(datasets, initial_guess=(0.1, 0.5)):
 
 def weighted_linear_regression(x, y, w):
     """Performs weighted linear regression: y = m*x + b"""
+    if len(x) < 2 or np.sum(w) <= 0:
+        return 0.0, 0.0, 0.0
+    
     x = np.array(x).reshape(-1, 1)
     y = np.array(y)
     w = np.array(w)
     
-    model = LinearRegression()
-    model.fit(x, y, sample_weight=w)
-    
-    r2 = model.score(x, y, sample_weight=w)
-    m = model.coef_[0]
-    b = model.intercept_
-    
-    return m, b, r2
+    try:
+        model = LinearRegression()
+        model.fit(x, y, sample_weight=w)
+        
+        r2 = model.score(x, y, sample_weight=w)
+        m = model.coef_[0]
+        b = model.intercept_
+        return m, b, r2
+    except:
+        return 0.0, 0.0, 0.0
 
 # =============================================================================
 # MAIN CLI APPARATUS
@@ -632,7 +637,6 @@ def main():
             min_elo = avg_elo
             max_elo = avg_elo
             
-        # bucket_stats was populated in the same order as bucket_files loop
         bucket_stats[b_idx].update({
             'avg_elo': avg_elo,
             'min_elo': min_elo,
@@ -643,6 +647,16 @@ def main():
             'c': 0.5
         })
         logger.info(f"Bucket {bf.name}: Analyzed {len(bucket_results)} eligible moves")
+
+    # Filter out buckets with insufficient data early
+    orig_count = len(bucket_stats)
+    bucket_stats = [b for b in bucket_stats if b['n'] >= 50]
+    if len(bucket_stats) < orig_count:
+        logger.warning(f"Dropping {orig_count - len(bucket_stats)} buckets due to insufficient eligible moves (<50).")
+    
+    if not bucket_stats:
+        logger.error("No buckets with sufficient data to perform fitting. Analysis aborted.")
+        return
 
     # 3. Iterative Fitting and Regression
     # We already initialized bucket_stats and updated it with results.
